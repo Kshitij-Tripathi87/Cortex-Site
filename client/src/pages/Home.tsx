@@ -32,8 +32,9 @@ const asset = {
 
 const productTabs = [
   {
-    id: "sense",
-    eyebrow: "SENSE",
+    id: "workflo",
+    eyebrow: "EARLY ACCESS",
+    name: "Workflo",
     title: "See the system, not just the signal.",
     body: "Cortex brings fragmented operational data into one continuously legible view—so teams can recognize the meaningful pattern before it becomes a costly surprise.",
     bullets: ["Unify live and historical signals", "Surface root causes, not just alerts", "Create a shared operating picture"],
@@ -41,8 +42,9 @@ const productTabs = [
     statLabel: "faster issue resolution",
   },
   {
-    id: "decide",
-    eyebrow: "DECIDE",
+    id: "nexus",
+    eyebrow: "COMING SOON",
+    name: "Nexus",
     title: "Move from insight to action with context.",
     body: "Turn a question into a decision path. Cortex makes the evidence, trade-offs, and recommended next step visible to the people who need to move.",
     bullets: ["Ask questions in plain language", "Trace every recommendation to evidence", "Route decisions to the right owner"],
@@ -50,8 +52,9 @@ const productTabs = [
     statLabel: "less time in review cycles",
   },
   {
-    id: "scale",
-    eyebrow: "SCALE",
+    id: "astra",
+    eyebrow: "COMING SOON",
+    name: "ASTRA",
     title: "Make the better way repeatable.",
     body: "Codify what your best teams know into workflows that scale across functions, regions, and operating models—without adding another layer of complexity.",
     bullets: ["Standardize proven operating patterns", "Govern access and auditability", "Keep local teams moving fast"],
@@ -103,17 +106,17 @@ const insightPosts = [
 ];
 
 const documentationContext = [
-  { keywords: ["sense", "signal", "context"], answer: "Cortex Sense connects operational signals into a shared context so teams can investigate what changed and why it matters.", source: { label: "Sense product guide", href: "/docs" } },
-  { keywords: ["decide", "decision", "evidence"], answer: "Cortex Decide turns a complex question into an evidence-backed decision path with visible trade-offs, owners, and next actions.", source: { label: "Decision paths guide", href: "/docs" } },
-  { keywords: ["scale", "workflow", "repeat"], answer: "Cortex Scale codifies proven operating patterns into governed workflows that travel across functions without flattening local expertise.", source: { label: "Workflow governance guide", href: "/docs" } },
+  { keywords: ["workflo", "signal", "context"], answer: "Workflo connects operational signals into a shared context so teams can investigate what changed and why it matters.", source: { label: "Workflo product guide", href: "/docs" } },
+  { keywords: ["nexus", "decision", "evidence"], answer: "Nexus turns a complex question into an evidence-backed decision path with visible trade-offs, owners, and next actions.", source: { label: "Nexus decision paths guide", href: "/docs" } },
+  { keywords: ["astra", "workflow", "repeat"], answer: "ASTRA codifies proven operating patterns into governed workflows that travel across functions without flattening local expertise.", source: { label: "ASTRA workflow governance guide", href: "/docs" } },
   { keywords: ["platform", "architecture", "integration", "sandbox"], answer: "The Cortex platform connects the systems teams already trust, creates a shared operating context, and routes decisions into governed workflows.", source: { label: "Platform foundations guide", href: "/docs" } },
   { keywords: ["docs", "documentation", "api", "sdk"], answer: "Start with the documentation foundations for core concepts, then move into APIs, SDKs, integrations, and trust and governance.", source: { label: "Documentation overview", href: "/docs" } },
 ];
 
 const searchItems = [
-  { label: "Product", title: "Cortex Sense", href: "/product/sense" },
-  { label: "Product", title: "Cortex Decide", href: "/product/decide" },
-  { label: "Product", title: "Cortex Scale", href: "/product/scale" },
+  { label: "Product", title: "Workflo", href: "/product/workflo" },
+  { label: "Product", title: "Nexus", href: "/product/nexus" },
+  { label: "Product", title: "ASTRA", href: "/product/astra" },
   { label: "Platform", title: "How Cortex works", href: "/#platform" },
   { label: "AI Core", title: "AI Core — documentation assistant", href: "#aicore" },
   { label: "Case study", title: "Northstar Health: shared language for complexity", href: "/case-study/northstar-health" },
@@ -177,7 +180,7 @@ function downloadCalendarInvite(iso: string, timeZone: string, product: string) 
 }
 
 export default function Home() {
-  const [activeProduct, setActiveProduct] = useState("sense");
+  const [activeProduct, setActiveProduct] = useState("workflo");
   const [activePlatformPoint, setActivePlatformPoint] = useState("connect");
   const [caseIndex, setCaseIndex] = useState(0);
   const [selectedCase, setSelectedCase] = useState<(typeof cases)[number] | null>(null);
@@ -400,16 +403,16 @@ export default function Home() {
           <div className="section-rail"><span>PRODUCT</span><span className="rail-line" /><span>PRODUCT</span></div>
           <div className="section-content product-content">
             <div className="section-heading split-heading">
-              <div><p className="eyebrow">THE CORTEX SYSTEM</p><h2>One layer between<br /><span>signal and decision.</span></h2></div>
-              <p className="section-lede">See what matters. Decide with context. Repeat what works.</p>
+              <div><p className="eyebrow">THE CORTEX SYSTEM</p><h2>Three products for<br /><span>the work ahead.</span></h2></div>
+              <p className="section-lede">Workflo is in early access. Nexus and ASTRA are coming soon.</p>
             </div>
             <div className="product-layout">
-              <div className="product-tabs" role="tablist" aria-label="Cortex product pillars">
-                {productTabs.map((tab) => <button key={tab.id} className={`product-tab ${activeProduct === tab.id ? "active" : ""}`} onClick={() => setActiveProduct(tab.id)} role="tab" aria-selected={activeProduct === tab.id}><span>{tab.eyebrow}</span><strong>{tab.title.split(" ").slice(0, 2).join(" ")}</strong><ArrowRight size={16} /></button>)}
+              <div className="product-tabs" role="tablist" aria-label="Cortex products">
+                {productTabs.map((tab) => <button key={tab.id} className={`product-tab ${activeProduct === tab.id ? "active" : ""}`} onClick={() => setActiveProduct(tab.id)} role="tab" aria-selected={activeProduct === tab.id}><span>{tab.eyebrow}</span><strong>{tab.name}</strong><ArrowRight size={16} /></button>)}
               </div>
               <div className="product-detail">
-                <div className="product-detail-copy"><p className="eyebrow">{activeTab.eyebrow}</p><h3>{activeTab.title}</h3><p>{activeTab.body}</p><ul>{activeTab.bullets.map((bullet) => <li key={bullet}><Check size={15} /> {bullet}</li>)}</ul><a href={`/product/${activeProduct}`} className="text-link">Explore {activeTab.title.split(" ")[1]} <ArrowRight size={16} /></a></div>
-                <div className="product-stat"><span className="stat-value">{activeTab.stat}</span><span className="stat-label">{activeTab.statLabel}</span><span className="stat-index">{activeTab.eyebrow}</span></div>
+                <div className="product-detail-copy"><p className="eyebrow">{activeTab.eyebrow}</p><h3>{activeTab.name}</h3><p>{activeTab.body}</p><ul>{activeTab.bullets.map((bullet) => <li key={bullet}><Check size={15} /> {bullet}</li>)}</ul><a href={`/product/${activeProduct}`} className="text-link">Explore {activeTab.name} <ArrowRight size={16} /></a></div>
+                <div className="product-stat"><span className="stat-value">{activeTab.stat}</span><span className="stat-label">{activeTab.statLabel}</span><span className="stat-index">{activeTab.name}</span></div>
               </div>
             </div>
           </div>
@@ -444,7 +447,7 @@ export default function Home() {
 
       {aiCoreOpen && <div className="overlay-shell aicore-shell" role="dialog" aria-modal="true" aria-label="AI Core assistant"><div className="aicore-panel"><button className="modal-close" onClick={() => setAiCoreOpen(false)} aria-label="Close AI Core"><X size={20} /></button><div className="aicore-heading"><p className="eyebrow">AI CORE</p><h2>Ask the system<br /><em>clearly.</em></h2><p>A compact Cortex assistant for finding the right product, platform concept, or next step.</p></div><div className="aicore-reply"><span>AI CORE</span>{aiCoreTyping ? <div className="aicore-typing" role="status" aria-label="AI Core is typing"><i /><i /><i /></div> : <><p>{aiCoreReply}</p><a className="aicore-source" href={aiCoreSource.href}><BookOpen size={14} /> Source: {aiCoreSource.label} <ArrowUpRightIcon /></a></>}</div><form className="aicore-form" onSubmit={askAiCore}><input value={aiCoreInput} onChange={(event) => setAiCoreInput(event.target.value)} placeholder="Ask AI Core" aria-label="Ask AI Core" /><button className="button-primary" type="submit">Ask <ArrowRight size={16} /></button></form><div className="aicore-suggestions">{aiCoreFollowUps.map((followUp) => <button key={followUp} type="button" onClick={() => setAiCoreInput(followUp)}>{followUp}</button>)}</div></div></div>}
 
-      {contactOpen && <div className="overlay-shell contact-modal-shell" role="dialog" aria-modal="true" aria-label="Talk to Cortex"><div className="contact-modal"><button className="modal-close" onClick={closeContact} aria-label="Close contact form"><X size={20} /></button>{contactSubmitted ? <div className="contact-success contact-schedule"><div className="success-icon"><Check size={24} /></div><p className="eyebrow">MESSAGE RECEIVED</p><h2>Choose a<br /><em>time to meet.</em></h2><p>Pick a working session while the context is fresh.</p><div className="meeting-picker"><div className="meeting-step-label"><CalendarDays size={15} /> AVAILABLE WINDOWS</div><div className="meeting-dates">{meetingDays.map((day, index) => <button key={day.id} className={meetingDate === day.id ? "is-selected" : ""} onClick={() => { setMeetingDate(day.id); setMeetingTime(""); }}>{["Tuesday", "Wednesday", "Thursday"][index]}</button>)}</div>{meetingDate ? <div className="meeting-times"><span>AVAILABLE WINDOWS / {timeZone}</span>{meetingDays.find((day) => day.id === meetingDate)?.utcSlots.map((slot, slotIndex) => <button key={slot} className={meetingTime === slot ? "is-selected" : ""} onClick={() => setMeetingTime(slot)}>{["Morning", "Midday", "Afternoon", "Late afternoon"][slotIndex]}</button>)}</div> : <small className="meeting-hint">Select a day to see available times in {timeZone}.</small>}{meetingTime && <button className="meeting-download" onClick={() => downloadCalendarInvite(meetingTime, timeZone, selectedProduct)}><Download size={14} /> Download .ics invite</button>}</div><div className="contact-modal-footer schedule-footer"><button className="button-dark" onClick={confirmMeeting} disabled={!meetingDate || !meetingTime}>Confirm time <ArrowRight size={16} /></button><button className="button-ghost" onClick={closeContact}>Skip for now</button></div></div> : <form onSubmit={submitContact} noValidate><div className="contact-modal-heading"><p className="eyebrow">START A CONVERSATION</p><h2>Tell us what<br /><span>you’re building.</span></h2><p>Share a little context and we’ll make the first conversation useful.</p></div><div className="contact-fields"><label>Name<input value={contactForm.name} onChange={(event) => setContactForm({ ...contactForm, name: event.target.value })} placeholder="Your name" />{contactErrors.name && <small>{contactErrors.name}</small>}</label><label>Work email<input type="email" value={contactForm.email} onChange={(event) => setContactForm({ ...contactForm, email: event.target.value })} placeholder="you@company.com" />{contactErrors.email && <small>{contactErrors.email}</small>}</label><label>Company<input value={contactForm.company} onChange={(event) => setContactForm({ ...contactForm, company: event.target.value })} placeholder="Company name" />{contactErrors.company && <small>{contactErrors.company}</small>}</label><label className="contact-product-field">What would you like to discuss?<select value={selectedProduct} onChange={(event) => setSelectedProduct(event.target.value)}><option value="">Choose a product or service</option><option value="Cortex Sense">Cortex Sense</option><option value="Cortex Decide">Cortex Decide</option><option value="Cortex Scale">Cortex Scale</option><option value="Platform & integrations">Platform & integrations</option><option value="Enterprise partnership">Enterprise partnership</option></select>{contactErrors.product && <small>{contactErrors.product}</small>}</label><label className="contact-message-field">What are you working on?<textarea rows={4} value={contactForm.message} onChange={(event) => setContactForm({ ...contactForm, message: event.target.value })} placeholder="A sentence or two is perfect." />{contactErrors.message && <small>{contactErrors.message}</small>}</label></div><div className="contact-modal-footer"><span><FileText size={15} /> We respond shortly.</span><button className="button-primary" type="submit" disabled={contactSubmitting}>{contactSubmitting ? <><LoaderCircle size={16} className="animate-spin" /> Sending...</> : <>Send message <ArrowRight size={16} /></>}</button></div></form>}</div></div>}
+      {contactOpen && <div className="overlay-shell contact-modal-shell" role="dialog" aria-modal="true" aria-label="Talk to Cortex"><div className="contact-modal"><button className="modal-close" onClick={closeContact} aria-label="Close contact form"><X size={20} /></button>{contactSubmitted ? <div className="contact-success contact-schedule"><div className="success-icon"><Check size={24} /></div><p className="eyebrow">MESSAGE RECEIVED</p><h2>Choose a<br /><em>time to meet.</em></h2><p>Pick a working session while the context is fresh.</p><div className="meeting-picker"><div className="meeting-step-label"><CalendarDays size={15} /> AVAILABLE WINDOWS</div><div className="meeting-dates">{meetingDays.map((day, index) => <button key={day.id} className={meetingDate === day.id ? "is-selected" : ""} onClick={() => { setMeetingDate(day.id); setMeetingTime(""); }}>{["Tuesday", "Wednesday", "Thursday"][index]}</button>)}</div>{meetingDate ? <div className="meeting-times"><span>AVAILABLE WINDOWS / {timeZone}</span>{meetingDays.find((day) => day.id === meetingDate)?.utcSlots.map((slot, slotIndex) => <button key={slot} className={meetingTime === slot ? "is-selected" : ""} onClick={() => setMeetingTime(slot)}>{["Morning", "Midday", "Afternoon", "Late afternoon"][slotIndex]}</button>)}</div> : <small className="meeting-hint">Select a day to see available times in {timeZone}.</small>}{meetingTime && <button className="meeting-download" onClick={() => downloadCalendarInvite(meetingTime, timeZone, selectedProduct)}><Download size={14} /> Download .ics invite</button>}</div><div className="contact-modal-footer schedule-footer"><button className="button-dark" onClick={confirmMeeting} disabled={!meetingDate || !meetingTime}>Confirm time <ArrowRight size={16} /></button><button className="button-ghost" onClick={closeContact}>Skip for now</button></div></div> : <form onSubmit={submitContact} noValidate><div className="contact-modal-heading"><p className="eyebrow">START A CONVERSATION</p><h2>Tell us what<br /><span>you’re building.</span></h2><p>Share a little context and we’ll make the first conversation useful.</p></div><div className="contact-fields"><label>Name<input value={contactForm.name} onChange={(event) => setContactForm({ ...contactForm, name: event.target.value })} placeholder="Your name" />{contactErrors.name && <small>{contactErrors.name}</small>}</label><label>Work email<input type="email" value={contactForm.email} onChange={(event) => setContactForm({ ...contactForm, email: event.target.value })} placeholder="you@company.com" />{contactErrors.email && <small>{contactErrors.email}</small>}</label><label>Company<input value={contactForm.company} onChange={(event) => setContactForm({ ...contactForm, company: event.target.value })} placeholder="Company name" />{contactErrors.company && <small>{contactErrors.company}</small>}</label><label className="contact-product-field">What would you like to discuss?<select value={selectedProduct} onChange={(event) => setSelectedProduct(event.target.value)}><option value="">Choose a product or service</option><option value="Workflo">Workflo</option><option value="Nexus">Nexus</option><option value="ASTRA">ASTRA</option><option value="Platform & integrations">Platform & integrations</option><option value="Enterprise partnership">Enterprise partnership</option></select>{contactErrors.product && <small>{contactErrors.product}</small>}</label><label className="contact-message-field">What are you working on?<textarea rows={4} value={contactForm.message} onChange={(event) => setContactForm({ ...contactForm, message: event.target.value })} placeholder="A sentence or two is perfect." />{contactErrors.message && <small>{contactErrors.message}</small>}</label></div><div className="contact-modal-footer"><span><FileText size={15} /> We respond shortly.</span><button className="button-primary" type="submit" disabled={contactSubmitting}>{contactSubmitting ? <><LoaderCircle size={16} className="animate-spin" /> Sending...</> : <>Send message <ArrowRight size={16} /></>}</button></div></form>}</div></div>}
     </div>
   );
 }

@@ -9,20 +9,22 @@ export type ProductDetail = {
   description: string;
   metric: string;
   metricLabel: string;
+  status: "Early access" | "Coming soon";
   capabilities: string[];
   sections: { label: string; title: string; body: string; points: string[] }[];
 };
 
 export const products: ProductDetail[] = [
   {
-    slug: "sense",
-    name: "Cortex Sense",
+    slug: "workflo",
+    name: "Workflo",
     eyebrow: "PRODUCT",
     title: "See the system, not just the signal.",
-    intro: "Cortex Sense gives teams a continuously legible view of the conditions shaping the business.",
+    intro: "Workflo gives teams a continuously legible view of the conditions shaping the business.",
     description: "Bring fragmented operational data into one context, then use a shared language to separate meaningful patterns from background noise.",
     metric: "",
     metricLabel: "faster issue resolution",
+    status: "Early access",
     capabilities: ["Signal unification", "Root-cause exploration", "Shared operating picture", "Live and historical context"],
     sections: [
       { label: "INGEST", title: "Start with the signals you already have.", body: "Sense connects to the systems teams rely on today, preserving existing ownership while creating a consistent view across the organization.", points: ["Event streams and operational databases", "Business tools and workflow systems", "Human notes and domain context"] },
@@ -31,14 +33,15 @@ export const products: ProductDetail[] = [
     ],
   },
   {
-    slug: "decide",
-    name: "Cortex Decide",
+    slug: "nexus",
+    name: "Nexus",
     eyebrow: "PRODUCT",
     title: "Move from insight to action with context.",
-    intro: "Cortex Decide turns a complex question into an explicit, evidence-backed decision path.",
+    intro: "Nexus turns a complex question into an explicit, evidence-backed decision path.",
     description: "Make the evidence, trade-offs, owners, and recommended next step visible to the people who need to move.",
     metric: "",
     metricLabel: "less time in review cycles",
+    status: "Coming soon",
     capabilities: ["Plain-language questions", "Evidence trails", "Decision paths", "Owner routing"],
     sections: [
       { label: "ASK", title: "Start with the question, not the dashboard.", body: "Decide lets teams ask the question in the language they use every day, then maps it to the signals and systems that can answer it.", points: ["Natural-language exploration", "Reusable questions", "Role-specific context"] },
@@ -47,14 +50,15 @@ export const products: ProductDetail[] = [
     ],
   },
   {
-    slug: "scale",
-    name: "Cortex Scale",
+    slug: "astra",
+    name: "ASTRA",
     eyebrow: "PRODUCT",
     title: "Make the better way repeatable.",
-    intro: "Cortex Scale codifies what your best teams know into workflows that travel across functions and regions.",
+    intro: "ASTRA codifies what your best teams know into workflows that travel across functions and regions.",
     description: "Standardize proven operating patterns without forcing every team into the same local process.",
     metric: "",
     metricLabel: "more reusable workflows",
+    status: "Coming soon",
     capabilities: ["Workflow templates", "Governed operating patterns", "Local flexibility", "Performance feedback"],
     sections: [
       { label: "CODIFY", title: "Capture the way strong teams work.", body: "Turn tacit operating knowledge into clear, reusable patterns with the context and guardrails that make them safe to adopt.", points: ["Pattern libraries", "Embedded rationale", "Owner and access controls"] },
