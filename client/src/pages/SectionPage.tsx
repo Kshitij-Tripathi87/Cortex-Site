@@ -1,7 +1,6 @@
-/* Silverline Systems reminder: dedicated pages should be quieter than the landing page—one strong idea, one useful action, and one visual system per page. */
-import { useEffect } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Link } from "wouter";
-import { ArrowLeft, ArrowRight, BookOpen, Building2, FileText, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Building2, Check, FileText, LoaderCircle, Mail, ShieldCheck, Sparkles, X } from "lucide-react";
 import { products } from "@/lib/cortexContent";
 
 const pageContent = {
@@ -10,6 +9,9 @@ const pageContent = {
   sales: { eyebrow: "SALES", title: "Bring us the hard question.", intro: "Tell us where complexity is slowing the work. We’ll make the first conversation useful.", variant: "orb" as const, links: [{ label: "Book a working session", body: "Walk through one decision your team needs to make better." }, { label: "Explore your use case", body: "See how Cortex fits your operating context." }, { label: "Talk to an operator", body: "Meet the team behind the system." }] },
   company: { eyebrow: "COMPANY", title: "Built for the moments that matter.", intro: "Cortex helps the teams behind critical systems see clearly and move with confidence.", variant: "orb" as const, links: [{ label: "Insights", body: "Ideas for the next system." }, { label: "Investor center", body: "The long view on intelligent operations." }, { label: "Press center", body: "Company facts, media assets, and selected coverage." }] },
 };
+
+type WaitlistForm = { name: string; email: string; company: string };
+type WaitlistState = "idle" | "submitting" | "success" | "error";
 
 export default function SectionPage({ type }: { type: keyof typeof pageContent | "product" }) {
   useEffect(() => {
@@ -25,7 +27,52 @@ export default function SectionPage({ type }: { type: keyof typeof pageContent |
 }
 
 function ProductOverview() {
-  return <div className="detail-site section-page"><SectionPageHeader /><main><section className="section-page-hero" data-reveal><div className="section-page-copy"><Link href="/" className="back-link"><ArrowLeft size={15} /> Cortex home</Link><p className="eyebrow">PRODUCT</p><h1>Meet the products<br /><em>behind the work.</em></h1><p className="section-page-intro">Workflo, Nexus, and ASTRA. Three products, one intelligence layer.</p><Link href="/sales" className="button-primary">Talk to Cortex <ArrowRight size={16} /></Link></div><div className="section-page-visual product-overview-visual plain-surface"><span className="visual-readout">CORTEX / PRODUCT SYSTEM<small>workflo / nexus / astra</small></span></div></section><section className="section-page-list" data-reveal><div className="detail-rail">PRODUCTS</div><div className="section-page-list-copy"><p className="eyebrow">THE PRODUCT SYSTEM</p><h2>Choose the product<br /><span>you need next.</span></h2><div className="product-overview-links">{products.map((product) => <Link href={`/product/${product.slug}`} key={product.slug}><span className={`product-status ${product.status === "Early access" ? "is-early-access" : "is-coming-soon"}`}>{product.status}</span><strong>{product.name}</strong><small>{product.intro}</small><ArrowRight size={18} /></Link>)}</div></div></section></main><SectionPageFooter /></div>;
+  const [waitlistOpen, setWaitlistOpen] = useState(false);
+  const [waitlistState, setWaitlistState] = useState<WaitlistState>("idle");
+  const [waitlistError, setWaitlistError] = useState("");
+  const [waitlistForm, setWaitlistForm] = useState<WaitlistForm>({ name: "", email: "", company: "" });
+
+  useEffect(() => {
+    document.body.style.overflow = waitlistOpen ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [waitlistOpen]);
+
+  const openWaitlist = () => {
+    setWaitlistState("idle");
+    setWaitlistError("");
+    setWaitlistOpen(true);
+  };
+
+  const closeWaitlist = () => {
+    if (waitlistState === "submitting") return;
+    setWaitlistOpen(false);
+  };
+
+  const updateField = (field: keyof WaitlistForm, value: string) => {
+    setWaitlistForm((current) => ({ ...current, [field]: value }));
+    if (waitlistState === "error") setWaitlistState("idle");
+  };
+
+  const submitWaitlist = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setWaitlistState("submitting");
+    setWaitlistError("");
+    try {
+      const response = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(waitlistForm),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "We could not submit your request. Please try again.");
+      setWaitlistState("success");
+    } catch (error) {
+      setWaitlistState("error");
+      setWaitlistError(error instanceof Error ? error.message : "We could not submit your request. Please try again.");
+    }
+  };
+
+  return <div className="detail-site section-page"><SectionPageHeader /><main><section className="section-page-hero" data-reveal><div className="section-page-copy"><Link href="/" className="back-link"><ArrowLeft size={15} /> Cortex home</Link><p className="eyebrow">PRODUCT</p><h1>Meet the products<br /><em>behind the work.</em></h1><p className="section-page-intro">Workflo, Nexus, and ASTRA. Three products, one intelligence layer.</p><Link href="/sales" className="button-primary">Talk to Cortex <ArrowRight size={16} /></Link></div><div className="section-page-visual product-overview-visual plain-surface"><span className="visual-readout">CORTEX / PRODUCT SYSTEM<small>workflo / nexus / astra</small></span></div></section><section className="section-page-list" data-reveal><div className="detail-rail">PRODUCTS</div><div className="section-page-list-copy"><p className="eyebrow">THE PRODUCT SYSTEM</p><h2>Choose the product<br /><span>you need next.</span></h2><div className="product-overview-links">{products.map((product) => product.slug === "workflo" ? <button type="button" className="product-overview-card" onClick={openWaitlist} key={product.slug}><span className={`product-status ${product.status === "Early access" ? "is-early-access" : "is-coming-soon"}`}>{product.status}</span><strong>{product.name}</strong><small>{product.intro}</small><span className="product-card-action">Join the waitlist <ArrowRight size={18} /></span></button> : <Link className="product-overview-card" href={`/product/${product.slug}`} key={product.slug}><span className={`product-status ${product.status === "Early access" ? "is-early-access" : "is-coming-soon"}`}>{product.status}</span><strong>{product.name}</strong><small>{product.intro}</small><span className="product-card-action">Explore {product.name} <ArrowRight size={18} /></span></Link>)}</div></div></section></main>{waitlistOpen && <div className="overlay-shell waitlist-modal-shell" role="dialog" aria-modal="true" aria-label="Join the Workflo early access waitlist" onMouseDown={(event) => { if (event.target === event.currentTarget) closeWaitlist(); }}><div className="waitlist-modal"><button className="modal-close" type="button" onClick={closeWaitlist} aria-label="Close Workflo waitlist"><X size={20} /></button>{waitlistState === "success" ? <div className="contact-success"><div className="success-icon"><Check size={24} /></div><p className="eyebrow">REQUEST RECEIVED</p><h2>You’re on the<br /><em>Workflo list.</em></h2><p>Thanks for your interest. We’ll follow up with early-access details soon.</p><button type="button" className="button-dark" onClick={closeWaitlist}>Back to products <ArrowRight size={16} /></button></div> : <form onSubmit={submitWaitlist}><div className="contact-modal-heading"><p className="eyebrow">WORKFLO / EARLY ACCESS</p><h2>Get early access<br /><span>to Workflo.</span></h2><p>Tell us where Workflo could help your team see the system more clearly.</p></div><div className="contact-fields waitlist-fields"><label>Full name<input required autoComplete="name" value={waitlistForm.name} onChange={(event) => updateField("name", event.target.value)} placeholder="Your name" /></label><label>Work email<input required type="email" autoComplete="email" value={waitlistForm.email} onChange={(event) => updateField("email", event.target.value)} placeholder="you@company.com" /></label><label className="waitlist-company-field">Company<input autoComplete="organization" value={waitlistForm.company} onChange={(event) => updateField("company", event.target.value)} placeholder="Company name" /></label></div>{waitlistState === "error" && <p className="waitlist-form-error" role="alert">{waitlistError}</p>}<div className="contact-modal-footer"><span><Mail size={15} /> We’ll review your request shortly.</span><button className="button-primary" type="submit" disabled={waitlistState === "submitting"}>{waitlistState === "submitting" ? <><LoaderCircle size={16} className="animate-spin" /> Sending...</> : <>Request early access <ArrowRight size={16} /></>}</button></div></form>}</div></div>}<SectionPageFooter /></div>;
 }
 
 function SectionPageHeader() { return <header className="detail-header"><Link href="/" className="brand"><span className="brand-mark-shell"><img src="/assets/cortex-mark.svg" alt="" className="brand-mark" /></span><span className="brand-wordmark">CORTEX</span></Link><nav className="detail-nav"><Link href="/product">Product</Link><Link href="/platform">Platform</Link><Link href="/docs">Docs</Link><Link href="/company">Company</Link></nav><a href="/?contact=1#contact" className="detail-header-cta">Talk to Cortex <ArrowRight size={15} /></a></header>; }

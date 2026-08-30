@@ -8,6 +8,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import DetailPage from "./pages/DetailPage";
 import SectionPage from "./pages/SectionPage";
+import AdminWaitlistPage from "./pages/AdminWaitlistPage";
 
 function Router() {
   return (
@@ -18,6 +19,7 @@ function Router() {
       <Route path="/docs" component={() => <SectionPage type="docs" />} />
       <Route path="/sales" component={() => <SectionPage type="sales" />} />
       <Route path="/company" component={() => <SectionPage type="company" />} />
+      <Route path="/admin/waitlist" component={AdminWaitlistPage} />
       <Route path="/product/:slug">{(params) => <DetailPage kind="product" slug={params.slug} />}</Route>
       <Route path="/case-study/:slug">{(params) => <DetailPage kind="case-study" slug={params.slug} />}</Route>
       <Route path="/404" component={NotFound} />
