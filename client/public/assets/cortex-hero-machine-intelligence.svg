@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" role="img" aria-label="Editorial machine-intelligence surface">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0c1019" />
+      <stop offset="55%" stop-color="#151922" />
+      <stop offset="100%" stop-color="#1d2536" />
+    </linearGradient>
+    <radialGradient id="r" cx="0.7" cy="0.3" r="0.7">
+      <stop offset="0%" stop-color="#2457e6" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#2457e6" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <rect width="1600" height="1000" fill="url(#g)" />
+  <rect width="1600" height="1000" fill="url(#r)" />
+  <g stroke="#2a3142" stroke-width="1" fill="none">
+    <path d="M0 720 L1600 720" />
+    <path d="M0 820 L1600 820" />
+    <path d="M0 920 L1600 920" />
+    <path d="M320 0 L320 1000" />
+    <path d="M640 0 L640 1000" />
+    <path d="M960 0 L960 1000" />
+    <path d="M1280 0 L1280 1000" />
+  </g>
+  <g fill="#3a4358" opacity="0.55">
+    <rect x="380" y="540" width="180" height="14" rx="3" />
+    <rect x="380" y="572" width="120" height="14" rx="3" />
+    <rect x="700" y="660" width="220" height="14" rx="3" />
+    <rect x="700" y="692" width="160" height="14" rx="3" />
+  </g>
+  <g fill="#2457e6" opacity="0.85">
+    <circle cx="1180" cy="280" r="6" />
+    <circle cx="1240" cy="220" r="4" />
+    <circle cx="1300" cy="340" r="5" />
+    <circle cx="1140" cy="380" r="3" />
+  </g>
+  <g fill="none" stroke="#2457e6" stroke-width="1" opacity="0.45">
+    <path d="M1100 200 L1180 280 L1240 220 L1300 340 L1140 380 Z" />
+  </g>
+</svg>
