@@ -514,9 +514,13 @@
 .admin-site { min-height: 100vh; background: #eef0f3; color: #151922; }
 .admin-site .detail-header { background: rgba(244,245,247,.96); }
 .admin-header-label { color: #7d8795; font: 500 10px "IBM Plex Mono", monospace; letter-spacing: .14em; text-transform: uppercase; margin-left: auto; margin-right: 28px; }
-.admin-signout { border: 0; border-bottom: 1px solid #aeb7c4; background: transparent; color: #586373; font: 500 11px "IBM Plex Mono", monospace; padding: 4px 0; }
+.admin-signout { display: inline-flex; align-items: center; gap: 6px; border: 0; border-bottom: 1px solid #aeb7c4; background: transparent; color: #586373; font: 500 11px "IBM Plex Mono", monospace; padding: 4px 0; cursor: pointer; }
 .admin-signout:hover { color: #2457e6; border-color: #2457e6; }
+.admin-signout:disabled { cursor: wait; opacity: .75; }
 .admin-main { max-width: 1220px; min-height: calc(100vh - 142px); margin: 0 auto; padding: 86px 6vw 100px; }
+.admin-session-check { display: flex; align-items: center; gap: 10px; min-height: 40vh; justify-content: center; color: #7d8795; font: 500 12px "IBM Plex Mono", monospace; letter-spacing: .08em; text-transform: uppercase; }
+.admin-site .animate-spin { animation: spin 750ms linear infinite; }
+@media (prefers-reduced-motion: reduce) { .admin-site .animate-spin { animation: none; } }
 .admin-login-card { width: min(520px, 100%); padding: 48px; background: #f8f9fa; border: 1px solid #d1d7e0; box-shadow: 0 24px 60px rgba(21,25,34,.08); }
 .admin-icon { width: 44px; height: 44px; display: grid; place-items: center; margin-bottom: 32px; color: #fff; background: #2457e6; }
 .admin-login-card h1 { margin: 21px 0 18px; font: 600 clamp(3.2rem, 7vw, 5.8rem)/.9 "Space Grotesk", sans-serif; letter-spacing: -.07em; }

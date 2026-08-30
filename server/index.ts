@@ -3,13 +3,153 @@ import { createServer } from "http";
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { createHash, randomBytes, timingSafeEqual } from "crypto";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const port = Number(process.env.PORT) || 3000;
+const isProduction = process.env.NODE_ENV === "production";
 const staticPath = path.resolve(__dirname, "public");
 const waitlistFile = path.resolve(process.env.WORKFLO_WAITLIST_FILE || path.resolve(__dirname, "..", "data", "waitlist.json"));
+
+// ---------------------------------------------------------------------------
+// Admin authentication: server-side sessions backed by an httpOnly cookie.
+// The admin credential is never exposed to or stored by the browser beyond
+// the login request itself; the client only ever holds an opaque session
+// cookie that the server can invalidate at any time.
+// ---------------------------------------------------------------------------
+const ADMIN_SESSION_COOKIE = "cortex_admin_session";
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours, refreshed on activity
+const LOGIN_WINDOW_MS = 10 * 60 * 1000; // 10 minute sliding attempt window
+const LOGIN_MAX_ATTEMPTS = 8; // attempts allowed within the window before lockout
+const LOGIN_LOCKOUT_MS = 15 * 60 * 1000; // lockout duration once exceeded
+
+type AdminSession = { expiresAt: number };
+type LoginAttemptState = { count: number; firstAttemptAt: number; lockedUntil: number };
+
+const adminSessions = new Map<string, AdminSession>();
+const loginAttempts = new Map<string, LoginAttemptState>();
+
+function pruneExpiredAuthState() {
+  const now = Date.now();
+  adminSessions.forEach((session, id) => {
+    if (session.expiresAt <= now) adminSessions.delete(id);
+  });
+  loginAttempts.forEach((state, ip) => {
+    if (state.lockedUntil <= now && state.firstAttemptAt + LOGIN_WINDOW_MS <= now) loginAttempts.delete(ip);
+  });
+}
+const pruneInterval = setInterval(pruneExpiredAuthState, 15 * 60 * 1000);
+pruneInterval.unref();
+
+function parseCookies(header: string | undefined): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  if (!header) return cookies;
+  for (const part of header.split(";")) {
+    const index = part.indexOf("=");
+    if (index === -1) continue;
+    const name = part.slice(0, index).trim();
+    const value = part.slice(index + 1).trim();
+    if (!name) continue;
+    try {
+      cookies[name] = decodeURIComponent(value);
+    } catch {
+      cookies[name] = value;
+    }
+  }
+  return cookies;
+}
+
+function setAdminSessionCookie(res: express.Response, sessionId: string, maxAgeMs: number) {
+  const attributes = [
+    `${ADMIN_SESSION_COOKIE}=${encodeURIComponent(sessionId)}`,
+    "HttpOnly",
+    "Path=/",
+    "SameSite=Strict",
+    `Max-Age=${Math.floor(maxAgeMs / 1000)}`,
+  ];
+  if (isProduction) attributes.push("Secure");
+  res.setHeader("Set-Cookie", attributes.join("; "));
+}
+
+function clearAdminSessionCookie(res: express.Response) {
+  const attributes = [`${ADMIN_SESSION_COOKIE}=`, "HttpOnly", "Path=/", "SameSite=Strict", "Max-Age=0"];
+  if (isProduction) attributes.push("Secure");
+  res.setHeader("Set-Cookie", attributes.join("; "));
+}
+
+function createAdminSession(): string {
+  const sessionId = randomBytes(32).toString("hex");
+  adminSessions.set(sessionId, { expiresAt: Date.now() + SESSION_TTL_MS });
+  return sessionId;
+}
+
+function readAdminSessionId(req: express.Request): string | undefined {
+  const cookies = parseCookies(req.get("cookie"));
+  return cookies[ADMIN_SESSION_COOKIE];
+}
+
+function isAdminSessionValid(sessionId: string | undefined): boolean {
+  if (!sessionId) return false;
+  const session = adminSessions.get(sessionId);
+  if (!session) return false;
+  if (session.expiresAt <= Date.now()) {
+    adminSessions.delete(sessionId);
+    return false;
+  }
+  return true;
+}
+
+function touchAdminSession(sessionId: string) {
+  const session = adminSessions.get(sessionId);
+  if (session) session.expiresAt = Date.now() + SESSION_TTL_MS;
+}
+
+function destroyAdminSession(sessionId: string | undefined) {
+  if (sessionId) adminSessions.delete(sessionId);
+}
+
+function timingSafeStringsEqual(a: string, b: string): boolean {
+  const digestA = createHash("sha256").update(a).digest();
+  const digestB = createHash("sha256").update(b).digest();
+  return timingSafeEqual(digestA, digestB);
+}
+
+function getClientKey(req: express.Request): string {
+  return req.ip || req.socket.remoteAddress || "unknown";
+}
+
+function checkLoginRateLimit(clientKey: string): { allowed: boolean; retryAfterSeconds?: number } {
+  const now = Date.now();
+  const state = loginAttempts.get(clientKey);
+  if (!state) return { allowed: true };
+  if (state.lockedUntil > now) {
+    return { allowed: false, retryAfterSeconds: Math.ceil((state.lockedUntil - now) / 1000) };
+  }
+  if (now - state.firstAttemptAt > LOGIN_WINDOW_MS) {
+    loginAttempts.delete(clientKey);
+    return { allowed: true };
+  }
+  return { allowed: true };
+}
+
+function recordFailedLogin(clientKey: string) {
+  const now = Date.now();
+  const state = loginAttempts.get(clientKey);
+  if (!state || now - state.firstAttemptAt > LOGIN_WINDOW_MS) {
+    loginAttempts.set(clientKey, { count: 1, firstAttemptAt: now, lockedUntil: 0 });
+    return;
+  }
+  state.count += 1;
+  if (state.count >= LOGIN_MAX_ATTEMPTS) {
+    state.lockedUntil = now + LOGIN_LOCKOUT_MS;
+  }
+}
+
+function recordSuccessfulLogin(clientKey: string) {
+  loginAttempts.delete(clientKey);
+}
 
 type WaitlistSignup = {
   id: string;
@@ -27,6 +167,7 @@ process.on("uncaughtException", (err) => {
 });
 
 const app = express();
+app.set("trust proxy", true);
 app.use(express.json({ limit: "100kb" }));
 
 app.use((_req, res, next) => {
@@ -133,17 +274,14 @@ async function sendWaitlistNotification(signup: WaitlistSignup) {
   }
 }
 
-function requireAdmin(req: express.Request, res: express.Response) {
-  const configuredToken = process.env.WORKFLO_ADMIN_TOKEN?.trim();
-  if (!configuredToken) {
-    res.status(503).json({ error: "Admin access is not configured." });
-    return false;
-  }
-  const authorization = req.get("authorization") || "";
-  if (authorization !== `Bearer ${configuredToken}`) {
+function requireAdmin(req: express.Request, res: express.Response): boolean {
+  const sessionId = readAdminSessionId(req);
+  if (!isAdminSessionValid(sessionId)) {
     res.status(401).json({ error: "Unauthorized." });
     return false;
   }
+  touchAdminSession(sessionId!);
+  setAdminSessionCookie(res, sessionId!, SESSION_TTL_MS);
   return true;
 }
 
@@ -179,6 +317,51 @@ app.post("/api/waitlist", async (req, res) => {
     console.error("[waitlist] Submission failed:", error);
     res.status(502).json({ error: "We could not send your request. Please try again shortly." });
   }
+});
+
+app.post("/api/admin/login", async (req, res) => {
+  const configuredToken = process.env.WORKFLO_ADMIN_TOKEN?.trim();
+  if (!configuredToken) {
+    res.status(503).json({ error: "Admin access is not configured." });
+    return;
+  }
+
+  const clientKey = getClientKey(req);
+  const rateLimit = checkLoginRateLimit(clientKey);
+  if (!rateLimit.allowed) {
+    res.setHeader("Retry-After", String(rateLimit.retryAfterSeconds ?? 60));
+    res.status(429).json({ error: "Too many attempts. Please try again later." });
+    return;
+  }
+
+  const submittedToken = cleanText(req.body?.token, 512);
+  if (!submittedToken || !timingSafeStringsEqual(submittedToken, configuredToken)) {
+    recordFailedLogin(clientKey);
+    res.status(401).json({ error: "Invalid admin token." });
+    return;
+  }
+
+  recordSuccessfulLogin(clientKey);
+  const sessionId = createAdminSession();
+  setAdminSessionCookie(res, sessionId, SESSION_TTL_MS);
+  res.status(200).json({ ok: true });
+});
+
+app.post("/api/admin/logout", (req, res) => {
+  const sessionId = readAdminSessionId(req);
+  destroyAdminSession(sessionId);
+  clearAdminSessionCookie(res);
+  res.status(200).json({ ok: true });
+});
+
+app.get("/api/admin/session", (req, res) => {
+  const sessionId = readAdminSessionId(req);
+  const valid = isAdminSessionValid(sessionId);
+  if (valid) {
+    touchAdminSession(sessionId!);
+    setAdminSessionCookie(res, sessionId!, SESSION_TTL_MS);
+  }
+  res.status(200).json({ authenticated: valid });
 });
 
 app.get("/api/admin/waitlist", async (req, res) => {
