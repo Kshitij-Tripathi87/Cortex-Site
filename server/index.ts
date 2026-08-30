@@ -12,6 +12,7 @@ const port = Number(process.env.PORT) || 3000;
 const isProduction = process.env.NODE_ENV === "production";
 const staticPath = path.resolve(__dirname, "public");
 const waitlistFile = path.resolve(process.env.WORKFLO_WAITLIST_FILE || path.resolve(__dirname, "..", "data", "waitlist.json"));
+const contactFile = path.resolve(process.env.CORTEX_CONTACT_FILE || path.resolve(__dirname, "..", "data", "contact-requests.json"));
 
 // ---------------------------------------------------------------------------
 // Admin authentication: server-side sessions backed by an httpOnly cookie.
@@ -159,6 +160,16 @@ type WaitlistSignup = {
   submittedAt: string;
 };
 
+type ContactRequest = {
+  id: string;
+  name: string;
+  email: string;
+  company: string;
+  product: string;
+  message: string;
+  submittedAt: string;
+};
+
 process.on("unhandledRejection", (reason) => {
   console.error("[server] unhandledRejection:", reason);
 });
@@ -226,6 +237,22 @@ async function saveWaitlist(entries: WaitlistSignup[]) {
   await writeFile(waitlistFile, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
 }
 
+async function loadContactRequests() {
+  try {
+    const contents = await readFile(contactFile, "utf8");
+    const entries = JSON.parse(contents);
+    return Array.isArray(entries) ? entries as ContactRequest[] : [];
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+}
+
+async function saveContactRequests(entries: ContactRequest[]) {
+  await mkdir(path.dirname(contactFile), { recursive: true });
+  await writeFile(contactFile, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
+}
+
 async function sendWaitlistNotification(signup: WaitlistSignup) {
   const emailMode = (process.env.WORKFLO_EMAIL_MODE || "resend").trim().toLowerCase();
   const subject = `New Workflo early-access request from ${signup.name}`;
@@ -274,6 +301,56 @@ async function sendWaitlistNotification(signup: WaitlistSignup) {
   }
 }
 
+async function sendContactNotification(request: ContactRequest) {
+  const emailMode = (process.env.CORTEX_CONTACT_EMAIL_MODE || process.env.WORKFLO_EMAIL_MODE || "resend").trim().toLowerCase();
+  const subject = `New Cortex conversation request from ${request.name}`;
+  const text = [
+    "New Cortex conversation request",
+    `Name: ${request.name}`,
+    `Email: ${request.email}`,
+    `Company: ${request.company}`,
+    `Topic: ${request.product || "Not specified"}`,
+    `Message: ${request.message}`,
+    `Submitted: ${request.submittedAt}`,
+  ].join("\n");
+  const html = `<h2>New Cortex conversation request</h2><p><strong>Name:</strong> ${escapeHtml(request.name)}</p><p><strong>Email:</strong> ${escapeHtml(request.email)}</p><p><strong>Company:</strong> ${escapeHtml(request.company)}</p><p><strong>Topic:</strong> ${escapeHtml(request.product || "Not specified")}</p><p><strong>Message:</strong> ${escapeHtml(request.message)}</p><p><strong>Submitted:</strong> ${escapeHtml(request.submittedAt)}</p>`;
+
+  if (emailMode === "mock") {
+    console.info("[contact] Mock email notification:", { from: process.env.CORTEX_CONTACT_EMAIL_FROM || process.env.WORKFLO_EMAIL_FROM || "mock@cortex.local", to: process.env.CORTEX_CONTACT_TO_EMAIL || process.env.WORKFLO_WAITLIST_TO_EMAIL || "admin@cortex.local", subject, text });
+    return;
+  }
+
+  const resendApiKey = process.env.RESEND_API_KEY?.trim();
+  const notificationEmail = (process.env.CORTEX_CONTACT_TO_EMAIL || process.env.WORKFLO_WAITLIST_TO_EMAIL)?.trim();
+  const fromEmail = (process.env.CORTEX_CONTACT_EMAIL_FROM || process.env.WORKFLO_EMAIL_FROM)?.trim();
+  if (!resendApiKey || !notificationEmail || !fromEmail) {
+    console.error("[contact] Missing RESEND_API_KEY, CORTEX_CONTACT_TO_EMAIL, or CORTEX_CONTACT_EMAIL_FROM");
+    throw new Error("email_configuration_missing");
+  }
+
+  const emailResponse = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: fromEmail,
+      to: [notificationEmail],
+      reply_to: request.email,
+      subject,
+      text,
+      html,
+    }),
+  });
+
+  if (!emailResponse.ok) {
+    const providerError = await emailResponse.text();
+    console.error("[contact] Email provider rejected notification:", providerError);
+    throw new Error("email_provider_rejected");
+  }
+}
+
 function requireAdmin(req: express.Request, res: express.Response): boolean {
   const sessionId = readAdminSessionId(req);
   if (!isAdminSessionValid(sessionId)) {
@@ -316,6 +393,44 @@ app.post("/api/waitlist", async (req, res) => {
     }
     console.error("[waitlist] Submission failed:", error);
     res.status(502).json({ error: "We could not send your request. Please try again shortly." });
+  }
+});
+
+app.post("/api/contact", async (req, res) => {
+  const name = cleanText(req.body?.name, 120);
+  const email = cleanText(req.body?.email, 254).toLowerCase();
+  const company = cleanText(req.body?.company, 160);
+  const product = cleanText(req.body?.product, 120);
+  const message = cleanText(req.body?.message, 4000);
+
+  if (!name || !email || !isValidEmail(email) || !company || message.length < 20) {
+    res.status(400).json({ error: "Please provide your name, work email, company, and a short message." });
+    return;
+  }
+
+  const request: ContactRequest = {
+    id: `ct_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    name,
+    email,
+    company,
+    product,
+    message,
+    submittedAt: new Date().toISOString(),
+  };
+
+  try {
+    await sendContactNotification(request);
+    const entries = await loadContactRequests();
+    entries.unshift(request);
+    await saveContactRequests(entries);
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    if (error instanceof Error && error.message === "email_configuration_missing") {
+      res.status(503).json({ error: "The contact form is temporarily unavailable. Please try again shortly." });
+      return;
+    }
+    console.error("[contact] Submission failed:", error);
+    res.status(502).json({ error: "We could not send your message. Please try again shortly." });
   }
 });
 
@@ -372,6 +487,17 @@ app.get("/api/admin/waitlist", async (req, res) => {
   } catch (error) {
     console.error("[admin] Could not load waitlist:", error);
     res.status(500).json({ error: "Could not load waitlist submissions." });
+  }
+});
+
+app.get("/api/admin/contact", async (req, res) => {
+  if (!requireAdmin(req, res)) return;
+  try {
+    const entries = await loadContactRequests();
+    res.status(200).json({ entries, total: entries.length });
+  } catch (error) {
+    console.error("[admin] Could not load contact requests:", error);
+    res.status(500).json({ error: "Could not load contact requests." });
   }
 });
 

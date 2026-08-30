@@ -207,6 +207,7 @@ export default function Home() {
   const [timeZone, setTimeZone] = useState("UTC");
   const [contactForm, setContactForm] = useState({ name: "", email: "", company: "", message: "" });
   const [contactErrors, setContactErrors] = useState<Record<string, string>>({});
+  const [contactSubmitError, setContactSubmitError] = useState("");
   const activeTab = productTabs.find((tab) => tab.id === activeProduct) ?? productTabs[0];
   const currentCase = cases[caseIndex];
   const filteredSearch = useMemo(() => {
@@ -308,9 +309,9 @@ export default function Home() {
   const nextCase = () => setCaseIndex((index) => (index + 1) % cases.length);
   const previousCase = () => setCaseIndex((index) => (index - 1 + cases.length) % cases.length);
   const downloadReport = (name: string) => toast.success(`${name} download prepared`, { description: "This demo link is ready to connect to your investor portal." });
-  const openContact = () => { setContactSubmitted(false); setContactSubmitting(false); setSelectedProduct(""); setMeetingDate(""); setMeetingTime(""); setContactErrors({}); setContactOpen(true); };
-  const closeContact = () => { setContactOpen(false); setContactSubmitted(false); setContactSubmitting(false); setMeetingDate(""); setMeetingTime(""); };
-  const submitContact = (event: React.FormEvent<HTMLFormElement>) => {
+  const openContact = () => { setContactSubmitted(false); setContactSubmitting(false); setSelectedProduct(""); setMeetingDate(""); setMeetingTime(""); setContactErrors({}); setContactSubmitError(""); setContactOpen(true); };
+  const closeContact = () => { setContactOpen(false); setContactSubmitted(false); setContactSubmitting(false); setMeetingDate(""); setMeetingTime(""); setContactSubmitError(""); };
+  const submitContact = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const errors: Record<string, string> = {};
     if (!contactForm.name.trim()) errors.name = "Please enter your name.";
@@ -320,13 +321,32 @@ export default function Home() {
     if (!selectedProduct) errors.product = "Choose what you’d like to discuss.";
     if (contactForm.message.trim().length < 20) errors.message = "Tell us a little more so we can prepare.";
     setContactErrors(errors);
-    if (Object.keys(errors).length === 0) {
-      setContactSubmitting(true);
-      window.setTimeout(() => {
-        setContactSubmitting(false);
-        setContactSubmitted(true);
-        toast.success("Message received", { description: "Pick a time while the context is fresh." });
-      }, 700);
+    setContactSubmitError("");
+    if (Object.keys(errors).length !== 0) return;
+
+    setContactSubmitting(true);
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: contactForm.name.trim(),
+          email: normalizedEmail,
+          company: contactForm.company.trim(),
+          product: selectedProduct,
+          message: contactForm.message.trim(),
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error || "We could not send your message. Please try again shortly.");
+      }
+      setContactSubmitted(true);
+      toast.success("Message received", { description: "Pick a time while the context is fresh." });
+    } catch (requestError) {
+      setContactSubmitError(requestError instanceof Error ? requestError.message : "We could not send your message. Please try again shortly.");
+    } finally {
+      setContactSubmitting(false);
     }
   };
   const rememberSearch = (title: string) => {
@@ -447,7 +467,7 @@ export default function Home() {
 
       {aiCoreOpen && <div className="overlay-shell aicore-shell" role="dialog" aria-modal="true" aria-label="AI Core assistant"><div className="aicore-panel"><button className="modal-close" onClick={() => setAiCoreOpen(false)} aria-label="Close AI Core"><X size={20} /></button><div className="aicore-heading"><p className="eyebrow">AI CORE</p><h2>Ask the system<br /><em>clearly.</em></h2><p>A compact Cortex assistant for finding the right product, platform concept, or next step.</p></div><div className="aicore-reply"><span>AI CORE</span>{aiCoreTyping ? <div className="aicore-typing" role="status" aria-label="AI Core is typing"><i /><i /><i /></div> : <><p>{aiCoreReply}</p><a className="aicore-source" href={aiCoreSource.href}><BookOpen size={14} /> Source: {aiCoreSource.label} <ArrowUpRightIcon /></a></>}</div><form className="aicore-form" onSubmit={askAiCore}><input value={aiCoreInput} onChange={(event) => setAiCoreInput(event.target.value)} placeholder="Ask AI Core" aria-label="Ask AI Core" /><button className="button-primary" type="submit">Ask <ArrowRight size={16} /></button></form><div className="aicore-suggestions">{aiCoreFollowUps.map((followUp) => <button key={followUp} type="button" onClick={() => setAiCoreInput(followUp)}>{followUp}</button>)}</div></div></div>}
 
-      {contactOpen && <div className="overlay-shell contact-modal-shell" role="dialog" aria-modal="true" aria-label="Talk to Cortex"><div className="contact-modal"><button className="modal-close" onClick={closeContact} aria-label="Close contact form"><X size={20} /></button>{contactSubmitted ? <div className="contact-success contact-schedule"><div className="success-icon"><Check size={24} /></div><p className="eyebrow">MESSAGE RECEIVED</p><h2>Choose a<br /><em>time to meet.</em></h2><p>Pick a working session while the context is fresh.</p><div className="meeting-picker"><div className="meeting-step-label"><CalendarDays size={15} /> AVAILABLE WINDOWS</div><div className="meeting-dates">{meetingDays.map((day, index) => <button key={day.id} className={meetingDate === day.id ? "is-selected" : ""} onClick={() => { setMeetingDate(day.id); setMeetingTime(""); }}>{["Tuesday", "Wednesday", "Thursday"][index]}</button>)}</div>{meetingDate ? <div className="meeting-times"><span>AVAILABLE WINDOWS / {timeZone}</span>{meetingDays.find((day) => day.id === meetingDate)?.utcSlots.map((slot, slotIndex) => <button key={slot} className={meetingTime === slot ? "is-selected" : ""} onClick={() => setMeetingTime(slot)}>{["Morning", "Midday", "Afternoon", "Late afternoon"][slotIndex]}</button>)}</div> : <small className="meeting-hint">Select a day to see available times in {timeZone}.</small>}{meetingTime && <button className="meeting-download" onClick={() => downloadCalendarInvite(meetingTime, timeZone, selectedProduct)}><Download size={14} /> Download .ics invite</button>}</div><div className="contact-modal-footer schedule-footer"><button className="button-dark" onClick={confirmMeeting} disabled={!meetingDate || !meetingTime}>Confirm time <ArrowRight size={16} /></button><button className="button-ghost" onClick={closeContact}>Skip for now</button></div></div> : <form onSubmit={submitContact} noValidate><div className="contact-modal-heading"><p className="eyebrow">START A CONVERSATION</p><h2>Tell us what<br /><span>you’re building.</span></h2><p>Share a little context and we’ll make the first conversation useful.</p></div><div className="contact-fields"><label>Name<input value={contactForm.name} onChange={(event) => setContactForm({ ...contactForm, name: event.target.value })} placeholder="Your name" />{contactErrors.name && <small>{contactErrors.name}</small>}</label><label>Work email<input type="email" value={contactForm.email} onChange={(event) => setContactForm({ ...contactForm, email: event.target.value })} placeholder="you@company.com" />{contactErrors.email && <small>{contactErrors.email}</small>}</label><label>Company<input value={contactForm.company} onChange={(event) => setContactForm({ ...contactForm, company: event.target.value })} placeholder="Company name" />{contactErrors.company && <small>{contactErrors.company}</small>}</label><label className="contact-product-field">What would you like to discuss?<select value={selectedProduct} onChange={(event) => setSelectedProduct(event.target.value)}><option value="">Choose a product or service</option><option value="Workflo">Workflo</option><option value="Nexus">Nexus</option><option value="ASTRA">ASTRA</option><option value="Platform & integrations">Platform & integrations</option><option value="Enterprise partnership">Enterprise partnership</option></select>{contactErrors.product && <small>{contactErrors.product}</small>}</label><label className="contact-message-field">What are you working on?<textarea rows={4} value={contactForm.message} onChange={(event) => setContactForm({ ...contactForm, message: event.target.value })} placeholder="A sentence or two is perfect." />{contactErrors.message && <small>{contactErrors.message}</small>}</label></div><div className="contact-modal-footer"><span><FileText size={15} /> We respond shortly.</span><button className="button-primary" type="submit" disabled={contactSubmitting}>{contactSubmitting ? <><LoaderCircle size={16} className="animate-spin" /> Sending...</> : <>Send message <ArrowRight size={16} /></>}</button></div></form>}</div></div>}
+      {contactOpen && <div className="overlay-shell contact-modal-shell" role="dialog" aria-modal="true" aria-label="Talk to Cortex"><div className="contact-modal"><button className="modal-close" onClick={closeContact} aria-label="Close contact form"><X size={20} /></button>{contactSubmitted ? <div className="contact-success contact-schedule"><div className="success-icon"><Check size={24} /></div><p className="eyebrow">MESSAGE RECEIVED</p><h2>Choose a<br /><em>time to meet.</em></h2><p>Pick a working session while the context is fresh.</p><div className="meeting-picker"><div className="meeting-step-label"><CalendarDays size={15} /> AVAILABLE WINDOWS</div><div className="meeting-dates">{meetingDays.map((day, index) => <button key={day.id} className={meetingDate === day.id ? "is-selected" : ""} onClick={() => { setMeetingDate(day.id); setMeetingTime(""); }}>{["Tuesday", "Wednesday", "Thursday"][index]}</button>)}</div>{meetingDate ? <div className="meeting-times"><span>AVAILABLE WINDOWS / {timeZone}</span>{meetingDays.find((day) => day.id === meetingDate)?.utcSlots.map((slot, slotIndex) => <button key={slot} className={meetingTime === slot ? "is-selected" : ""} onClick={() => setMeetingTime(slot)}>{["Morning", "Midday", "Afternoon", "Late afternoon"][slotIndex]}</button>)}</div> : <small className="meeting-hint">Select a day to see available times in {timeZone}.</small>}{meetingTime && <button className="meeting-download" onClick={() => downloadCalendarInvite(meetingTime, timeZone, selectedProduct)}><Download size={14} /> Download .ics invite</button>}</div><div className="contact-modal-footer schedule-footer"><button className="button-dark" onClick={confirmMeeting} disabled={!meetingDate || !meetingTime}>Confirm time <ArrowRight size={16} /></button><button className="button-ghost" onClick={closeContact}>Skip for now</button></div></div> : <form onSubmit={submitContact} noValidate><div className="contact-modal-heading"><p className="eyebrow">START A CONVERSATION</p><h2>Tell us what<br /><span>you’re building.</span></h2><p>Share a little context and we’ll make the first conversation useful.</p></div><div className="contact-fields"><label>Name<input value={contactForm.name} onChange={(event) => setContactForm({ ...contactForm, name: event.target.value })} placeholder="Your name" />{contactErrors.name && <small>{contactErrors.name}</small>}</label><label>Work email<input type="email" value={contactForm.email} onChange={(event) => setContactForm({ ...contactForm, email: event.target.value })} placeholder="you@company.com" />{contactErrors.email && <small>{contactErrors.email}</small>}</label><label>Company<input value={contactForm.company} onChange={(event) => setContactForm({ ...contactForm, company: event.target.value })} placeholder="Company name" />{contactErrors.company && <small>{contactErrors.company}</small>}</label><label className="contact-product-field">What would you like to discuss?<select value={selectedProduct} onChange={(event) => setSelectedProduct(event.target.value)}><option value="">Choose a product or service</option><option value="Workflo">Workflo</option><option value="Nexus">Nexus</option><option value="ASTRA">ASTRA</option><option value="Platform & integrations">Platform & integrations</option><option value="Enterprise partnership">Enterprise partnership</option></select>{contactErrors.product && <small>{contactErrors.product}</small>}</label><label className="contact-message-field">What are you working on?<textarea rows={4} value={contactForm.message} onChange={(event) => setContactForm({ ...contactForm, message: event.target.value })} placeholder="A sentence or two is perfect." />{contactErrors.message && <small>{contactErrors.message}</small>}</label></div>{contactSubmitError && <p className="waitlist-form-error" role="alert">{contactSubmitError}</p>}<div className="contact-modal-footer"><span><FileText size={15} /> We respond shortly.</span><button className="button-primary" type="submit" disabled={contactSubmitting}>{contactSubmitting ? <><LoaderCircle size={16} className="animate-spin" /> Sending...</> : <>Send message <ArrowRight size={16} /></>}</button></div></form>}</div></div>}
     </div>
   );
 }
