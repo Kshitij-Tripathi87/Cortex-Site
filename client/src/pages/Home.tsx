@@ -356,18 +356,36 @@ export default function Home() {
       return next;
     });
   };
-  const askAiCore = (event: React.FormEvent<HTMLFormElement>) => {
+  const askAiCore = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const prompt = aiCoreInput.trim();
     if (!prompt || aiCoreTyping) return;
     const lower = prompt.toLowerCase();
+    // Local grounded fallback keeps AI Core useful even if the API is offline.
     const grounded = documentationContext.find((entry) => entry.keywords.some((keyword) => lower.includes(keyword)));
-    const reply = grounded?.answer || "AI Core can answer from the Cortex platform guides, including product fit, platform foundations, integrations, workflows, and documentation paths.";
-    const source = grounded?.source || { label: "Cortex documentation overview", href: "/docs" };
-    const followUps = lower.includes("sense") ? ["How does Sense connect signals?", "Show me the Sense foundations.", "What should we instrument first?"] : lower.includes("decide") ? ["How are decision trails governed?", "Compare Decide and Sense.", "Where do I start in the docs?"] : lower.includes("platform") || lower.includes("docs") ? ["Show platform foundations.", "How do integrations work?", "Explain Cortex governance."] : ["Which product fits our operating model?", "Where should I start in the docs?", "Explain Cortex Sense"];
+    const fallbackReply = grounded?.answer || "AI Core can answer from the Cortex platform guides, including product fit, platform foundations, integrations, workflows, and documentation paths.";
+    const fallbackSource = grounded?.source || { label: "Cortex documentation overview", href: "/docs" };
+    const fallbackFollowUps = lower.includes("sense") ? ["How does Sense connect signals?", "Show me the Sense foundations.", "What should we instrument first?"] : lower.includes("decide") ? ["How are decision trails governed?", "Compare Decide and Sense.", "Where do I start in the docs?"] : lower.includes("platform") || lower.includes("docs") ? ["Show platform foundations.", "How do integrations work?", "Explain Cortex governance."] : ["Which product fits our operating model?", "Where should I start in the docs?", "Explain Cortex Sense"];
     setAiCoreTyping(true);
     setAiCoreInput("");
-    window.setTimeout(() => { setAiCoreReply(reply); setAiCoreSource(source); setAiCoreFollowUps(followUps); setAiCoreTyping(false); }, 620);
+    try {
+      const response = await fetch("/api/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      if (!response.ok) throw new Error(`ai chat responded ${response.status}`);
+      const data = (await response.json()) as { reply?: string; source?: { label: string; href: string }; followUps?: string[] };
+      setAiCoreReply(data.reply || fallbackReply);
+      setAiCoreSource(data.source || fallbackSource);
+      setAiCoreFollowUps(data.followUps?.length ? data.followUps : fallbackFollowUps);
+    } catch {
+      setAiCoreReply(fallbackReply);
+      setAiCoreSource(fallbackSource);
+      setAiCoreFollowUps(fallbackFollowUps);
+    } finally {
+      setAiCoreTyping(false);
+    }
   };
   const confirmMeeting = () => {
     if (!meetingDate || !meetingTime) return;

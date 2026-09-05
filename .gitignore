@@ -113,3 +113,6 @@ data/contact-requests.json
 # Manus scaffold remnants (legacy)
 client/public/__manus__/
 .project-config.json
+
+# Kilo agent/plan state
+.kilo/

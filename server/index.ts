@@ -4,6 +4,7 @@ import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createHash, randomBytes, timingSafeEqual } from "crypto";
+import { AI_SYSTEM_PROMPT, followUpsFor, groundPrompt } from "../shared/aiCore";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -498,6 +499,58 @@ app.get("/api/admin/contact", async (req, res) => {
   } catch (error) {
     console.error("[admin] Could not load contact requests:", error);
     res.status(500).json({ error: "Could not load contact requests." });
+  }
+});
+
+// AI Core chat endpoint. Grounds each reply in the shared platform/docs
+// knowledge base. If an OLLAMA_BASE_URL is configured, it proxies to a
+// self-hosted model and augments the prompt with the grounded context;
+// otherwise it returns the deterministic grounded answer so the assistant
+// always works, even without a running model.
+app.post("/api/ai/chat", async (req, res) => {
+  const prompt = typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
+  if (!prompt) {
+    res.status(400).json({ error: "prompt is required" });
+    return;
+  }
+
+  const grounded = groundPrompt(prompt);
+  const followUps = followUpsFor(prompt);
+  const ollamaBase = process.env.OLLAMA_BASE_URL;
+  const ollamaModel = process.env.OLLAMA_MODEL || "llama3";
+
+  if (!ollamaBase) {
+    res.json({ reply: grounded.answer, source: grounded.source, followUps, model: "grounded-fallback" });
+    return;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20_000);
+    const upstream = await fetch(`${ollamaBase.replace(/\/$/, "")}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: ollamaModel,
+        stream: false,
+        messages: [
+          { role: "system", content: AI_SYSTEM_PROMPT },
+          { role: "system", content: `Grounded context: ${grounded.answer} (source: ${grounded.source.label})` },
+          { role: "user", content: prompt },
+        ],
+      }),
+    });
+    clearTimeout(timeout);
+
+    if (!upstream.ok) throw new Error(`ollama responded ${upstream.status}`);
+    const data = (await upstream.json()) as { message?: { content?: string } };
+    const reply = data.message?.content?.trim() || grounded.answer;
+    res.json({ reply, source: grounded.source, followUps, model: ollamaModel });
+  } catch (err) {
+    console.error("[server] ai proxy error:", err);
+    // Never fail the assistant: fall back to the grounded answer.
+    res.json({ reply: grounded.answer, source: grounded.source, followUps, model: "grounded-fallback" });
   }
 });
 
