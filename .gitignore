@@ -7,12 +7,9 @@ dist/
 build/
 *.dist
 
-# Environment variables
+# Environment variables (all variants, including .env.example)
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.*
 
 # IDE and editor files
 .vscode/
