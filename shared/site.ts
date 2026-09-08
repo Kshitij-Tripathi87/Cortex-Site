@@ -3,9 +3,9 @@
  * never drift apart. */
 
 export const SITE_NAME = "Cortex";
-export const SITE_TAGLINE = "Clarity for critical systems.";
+export const SITE_TAGLINE = "Intelligence for critical systems.";
 export const SITE_DESCRIPTION =
-  "Cortex is the intelligence layer for teams building critical systems — turn complex signals into confident decisions.";
+  "Cortex is the intelligence layer for critical systems — execution sealed with proof, operations forecast with evidence, missions rehearsed before they are ordered.";
 export const SITE_LOCALE = "en_US";
 export const SITE_TWITTER_HANDLE = "@cortex";
 
@@ -27,12 +27,12 @@ export type SiteRoute = {
  * Products keep their current names: Workflo, Nexus, ASTRA.
  */
 export const SITE_ROUTES: SiteRoute[] = [
-  { path: "/", title: "Cortex — Clarity for critical systems", description: SITE_DESCRIPTION, sitemap: true, changefreq: "weekly", priority: 1 },
+  { path: "/", title: "Cortex — Intelligence for critical systems", description: SITE_DESCRIPTION, sitemap: true, changefreq: "weekly", priority: 1 },
   { path: "/products", title: "Products — Cortex", description: "Workflo, Nexus, and ASTRA. Three products, one intelligence layer for critical systems.", sitemap: true, changefreq: "weekly", priority: 0.9 },
-  { path: "/products/workflo", title: "Workflo — See the system, not just the signal | Cortex", description: "Workflo brings fragmented operational data into one continuously legible view, in early access now.", sitemap: true, changefreq: "monthly", priority: 0.8 },
-  { path: "/products/nexus", title: "Nexus — From insight to action with context | Cortex", description: "Nexus turns a complex question into an evidence-backed decision path. Coming soon.", sitemap: true, changefreq: "monthly", priority: 0.8 },
-  { path: "/products/astra", title: "ASTRA — Make the better way repeatable | Cortex", description: "ASTRA codifies proven operating patterns into governed workflows. Coming soon.", sitemap: true, changefreq: "monthly", priority: 0.8 },
-  { path: "/platform", title: "Platform — The intelligence layer beneath the work | Cortex", description: "Connect the systems you already trust. Give every team the context to move.", sitemap: true, changefreq: "monthly", priority: 0.9 },
+  { path: "/products/workflo", title: "Workflo — Execution Assurance | Cortex", description: "Workflo seals every action with proof at the moment it happens. Early access.", sitemap: true, changefreq: "monthly", priority: 0.8 },
+  { path: "/products/nexus", title: "Nexus — Operations Intelligence | Cortex", description: "Nexus turns many signals into ranked options with evidence attached. Live demo.", sitemap: true, changefreq: "monthly", priority: 0.8 },
+  { path: "/products/astra", title: "ASTRA — Mission Engineering | Cortex", description: "ASTRA rehearses courses of action in a sandboxed twin. Simulation only.", sitemap: true, changefreq: "monthly", priority: 0.8 },
+  { path: "/platform", title: "Platform — One intelligence layer | Cortex", description: "Signals unify, forecasts rank, actions seal — one layer beneath the work.", sitemap: true, changefreq: "monthly", priority: 0.9 },
   { path: "/solutions", title: "Solutions — Cortex", description: "Operating patterns for teams running complex, consequential systems.", sitemap: true, changefreq: "monthly", priority: 0.7 },
   { path: "/industries", title: "Industries — Cortex", description: "How healthcare, financial, and industrial teams use Cortex to decide with confidence.", sitemap: true, changefreq: "monthly", priority: 0.7 },
   { path: "/security", title: "Security & Trust — Cortex", description: "Security, permissions, and an auditable operating model, enterprise-grade by design.", sitemap: true, changefreq: "monthly", priority: 0.7 },
@@ -62,7 +62,7 @@ export function routeMeta(path: string): SiteRoute {
   return (
     SITE_ROUTES.find((route) => route.path === path) ?? {
       path,
-      title: "Cortex — Clarity for critical systems",
+      title: "Cortex — Intelligence for critical systems",
       description: SITE_DESCRIPTION,
       sitemap: false,
     }

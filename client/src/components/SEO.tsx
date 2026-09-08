@@ -39,7 +39,7 @@ export default function SEO({ path, title, description, image, noIndex, jsonLd }
     const resolvedTitle = title ?? meta.title;
     const resolvedDescription = description ?? meta.description;
     const canonical = canonicalUrl(path);
-    const cardImage = image ?? `${canonicalUrl("/assets/cortex-hero-machine-intelligence.svg")}`;
+    const cardImage = image ?? `${canonicalUrl("/images/hero-field-poster.jpg")}`;
 
     document.title = resolvedTitle;
     document.documentElement.setAttribute("lang", "en");
