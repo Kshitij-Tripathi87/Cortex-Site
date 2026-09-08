@@ -1,6 +1,6 @@
 /* Cinematic system: sparse header. Transparent over the hero, solid instrument after.
  * Products dropdown, status utility, persistent CTA, search entry. */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "wouter";
 import { ArrowRight, ChevronDown, Menu, Search } from "lucide-react";
 import { PRIMARY_NAV } from "@shared/site";
@@ -23,6 +23,8 @@ export default function Header({ overlay = false, onSearch, cta = { label: "Talk
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   const solid = !overlay || scrolled;
 
@@ -53,8 +55,9 @@ export default function Header({ overlay = false, onSearch, cta = { label: "Talk
             )}
           </nav>
           <div className="cx-header-utility">
+            <Link href="/security" className="cx-nav-link cx-security-utility">Security</Link>
             <Link href="/status" className="cx-status">
-              <span className="cx-status-dot" aria-hidden="true" /> SYSTEMS OPERATIONAL
+              <span aria-hidden="true">↗</span> VIEW SYSTEM STATUS
             </Link>
             {onSearch && (
               <button className="cx-icon-btn" onClick={onSearch} aria-label="Search Cortex">
@@ -75,7 +78,7 @@ export default function Header({ overlay = false, onSearch, cta = { label: "Talk
           </div>
         </div>
       </header>
-      <MobileMenu open={menuOpen} onClose={() => setMenuOpen(false)} />
+      <MobileMenu open={menuOpen} onClose={closeMenu} />
     </>
   );
 }

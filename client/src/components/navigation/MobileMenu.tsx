@@ -10,24 +10,35 @@ type MobileMenuProps = {
 };
 
 export default function MobileMenu({ open, onClose }: MobileMenuProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     closeRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
+      if (event.key === "Tab") {
+        const items = dialogRef.current?.querySelectorAll<HTMLElement>('a[href],button:not([disabled])');
+        if (!items?.length) return;
+        const first = items[0], last = items[items.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => {
-      document.body.style.overflow = "";
+      document.body.style.overflow = overflow;
+      previous?.focus();
       window.removeEventListener("keydown", onKey);
     };
   }, [open, onClose]);
 
   return (
-    <div className={`cx-mobilemenu${open ? " is-open" : ""}`} role="dialog" aria-modal="true" aria-label="Site navigation" aria-hidden={!open}>
+    <div ref={dialogRef} inert={!open} className={`cx-mobilemenu${open ? " is-open" : ""}`} role="dialog" aria-modal="true" aria-label="Site navigation" aria-hidden={!open}>
       <div className="cx-mobilemenu-top">
         <span className="cx-brand">
           <span className="cx-brand-mark">
@@ -60,7 +71,7 @@ export default function MobileMenu({ open, onClose }: MobileMenuProps) {
           Talk to Cortex <ArrowRight size={15} />
         </Link>
         <Link href="/status" className="cx-status" onClick={onClose} tabIndex={open ? 0 : -1}>
-          <span className="cx-status-dot" aria-hidden="true" /> SYSTEMS OPERATIONAL
+          <span aria-hidden="true">↗</span> VIEW SYSTEM STATUS
         </Link>
       </div>
     </div>

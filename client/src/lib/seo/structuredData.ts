@@ -34,7 +34,6 @@ export function productJsonLd(options: { name: string; path: string; description
     operatingSystem: "Web",
     url: `${SITE_URL}${options.path}`,
     description: options.description,
-    offers: { "@type": "Offer", price: "0", priceCurrency: "USD", availability: "https://schema.org/PreOrder" },
   };
 }
 

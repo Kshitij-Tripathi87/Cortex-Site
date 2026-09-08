@@ -2,17 +2,17 @@ import { expect, test } from "@playwright/test";
 
 test("hero carries the story", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: /seal the decision/i })).toBeVisible();
-  await expect(page.getByRole("marquee")).toBeVisible();
-  await expect(page.getByRole("link", { name: /explore the system/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /intelligence for critical systems/i })).toBeVisible();
+  await expect(page.getByRole("link", { name: /explore cortex/i })).toBeVisible();
 });
 
 test("flow stages are inspectable", async ({ page }) => {
   await page.goto("/");
-  const forecast = page.getByRole("group", { name: "How intelligence moves through Cortex" }).getByRole("button", { name: /^002 FORECAST/i });
-  await forecast.scrollIntoViewIfNeeded();
-  await forecast.click();
-  await expect(page.getByRole("heading", { name: /002 — forecast/i })).toBeVisible();
+  const simulation = page.getByRole("group", { name: "The intelligence layer", exact: true }).getByRole("button", { name: /simulation/i });
+  await simulation.scrollIntoViewIfNeeded();
+  await simulation.click();
+  await expect(simulation).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("heading", { name: "Simulation", exact: true })).toBeVisible();
 });
 
 test("systems link to product briefs", async ({ page }) => {
@@ -34,7 +34,7 @@ test.describe("reduced motion", () => {
 
   test("poster carries the hero without WebGL", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /seal the decision/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /intelligence for critical systems/i })).toBeVisible();
     await expect(page.locator(".cx-hero-field canvas")).toHaveCount(0);
     await expect(page.locator(".cx-hero-poster")).toBeVisible();
   });

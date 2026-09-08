@@ -328,13 +328,17 @@ function Field({ rig, compact }: { rig: FieldRig; compact: boolean }) {
   );
 }
 
-export default function FieldCanvas({ rig, compact }: { rig: FieldRig; compact: boolean }) {
+export default function FieldCanvas({ rig, compact, active }: { rig: FieldRig; compact: boolean; active: boolean }) {
   return (
     <Canvas
-      dpr={[1, 1.75]}
+      frameloop={active ? "always" : "never"}
+      dpr={[1, compact ? 1.25 : 1.75]}
       camera={{ position: [0, 0.6, 13], fov: 42, near: 0.1, far: 80 }}
       gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
-      onCreated={({ gl }) => gl.setClearColor(0x000000, 0)}
+      onCreated={({ gl }) => {
+        gl.setClearColor(0x000000, 0);
+        gl.domElement.addEventListener("webglcontextlost", () => { gl.domElement.style.display = "none"; });
+      }}
       aria-hidden="true"
     >
       <Field rig={rig} compact={compact} />
