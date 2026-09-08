@@ -55,7 +55,7 @@ export default function Footer() {
             </span>
             <p>Intelligence for critical systems.</p>
             <Link href="/status" className="cx-status">
-              <span className="cx-status-dot" aria-hidden="true" /> SYSTEMS OPERATIONAL
+              <span aria-hidden="true">↗</span> VIEW SYSTEM STATUS
             </Link>
           </div>
           {COLUMNS.map((column) => (

@@ -1,5 +1,6 @@
 /* Cinematic system: product briefs (001–008) and case-study briefs.
  * Numbered, structural, honest — every figure labeled or omitted. */
+import DesignProductPage from "./DesignProductPage";
 import { useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
@@ -10,9 +11,7 @@ import SectionNumber from "@/components/editorial/SectionNumber";
 import Statement, { Dim } from "@/components/editorial/Statement";
 import TechnicalLabel from "@/components/editorial/TechnicalLabel";
 import StatBlock from "@/components/product/StatBlock";
-import PipelineStrip from "@/components/product/PipelineStrip";
-import ArchitectureDiagram from "@/components/product/ArchitectureDiagram";
-import { breadcrumbJsonLd, productJsonLd } from "@/lib/seo/structuredData";
+import { breadcrumbJsonLd } from "@/lib/seo/structuredData";
 import { FUNNEL_EVENTS, track } from "@/lib/analytics/events";
 import { caseStudies, products, type CaseStudyDetail, type ProductDetail } from "@/lib/cortexContent";
 
@@ -34,241 +33,12 @@ export default function DetailPage({ kind, slug }: { kind: "product" | "case-stu
   return <CaseStudyDetailPage story={story!} />;
 }
 
-function ProductTag({ tag }: { tag: string }) {
-  const tone = tag === "SIMULATION" ? "is-sim" : "is-live";
-  return <span className={`cx-tag ${tone}`}>{tag}</span>;
-}
-
 /* ------------------------------------------------------------------ */
 /* Product brief                                                       */
 /* ------------------------------------------------------------------ */
 
 function ProductDetailPage({ product }: { product: ProductDetail }) {
-  const path = `/products/${product.slug}`;
-  const others = products.filter((item) => item.slug !== product.slug);
-
-  return (
-    <div className="cx-page">
-      <SEO
-        path={path}
-        jsonLd={[
-          productJsonLd({ name: product.name, path, description: product.description }),
-          breadcrumbJsonLd([
-            { name: "Home", path: "/" },
-            { name: "Products", path: "/products" },
-            { name: product.name, path },
-          ]),
-        ]}
-      />
-      <SiteHeader />
-      <main>
-        {/* 001 — FILM */}
-        <header className="cx-product-hero">
-          <div className="cx-product-hero-bg" style={{ backgroundImage: `url(${product.image})` }} aria-hidden="true" />
-          <div className="cx-wrap">
-            <Link href="/products" className="cx-text-link">
-              <ArrowLeft size={15} /> Product overview
-            </Link>
-            <p className="cx-kicker" style={{ marginTop: "2.4rem" }}>
-              001 / {product.category}
-            </p>
-            <h1>{product.name}</h1>
-            <p className="cx-product-state" style={{ maxWidth: "24ch" }}>
-              {product.statement} <span className="cx-dim">{product.statementDim}</span>
-            </p>
-            <div className="cx-solution-tags" style={{ margin: "1.6rem 0 2.2rem" }}>
-              <ProductTag tag={product.tag} />
-              <span className="cx-tag is-info">{product.status}</span>
-            </div>
-            <div className="cx-hero-ctas" style={{ marginTop: 0 }}>
-              <Link
-                href="/demo"
-                className="cx-btn cx-btn-primary"
-                onClick={() => track(FUNNEL_EVENTS.demoStarted, { product: product.slug })}
-              >
-                See it run <ArrowRight size={15} />
-              </Link>
-              <Link href="/contact" className="cx-btn cx-btn-ghost">
-                Talk to Cortex
-              </Link>
-            </div>
-          </div>
-        </header>
-
-        {/* 002 — STATEMENT */}
-        <section className="cx-section cx-section-tight" aria-label={`${product.name} declaration`}>
-          <div className="cx-wrap">
-            <Reveal>
-              <SectionNumber index="002" label="Declaration" />
-              <Statement wide>
-                {product.declaration} <Dim>{product.declarationDim}</Dim>
-              </Statement>
-            </Reveal>
-          </div>
-        </section>
-
-        {/* 003 — WHERE IT ACTS */}
-        <section className="cx-section cx-section-tight" aria-label="Where it acts">
-          <div className="cx-wrap">
-            <Reveal>
-              <SectionNumber index="003" label="Where it acts" />
-              <Statement>
-                {product.whereItActs.title.split(".")[0]}.{" "}
-                <Dim>{product.whereItActs.title.split(".").slice(1).join(".").trim() || product.intro}</Dim>
-              </Statement>
-            </Reveal>
-            <div className="cx-pagenum-body" style={{ marginTop: "2.5rem" }}>
-              <Reveal>
-                <p className="cx-lede">{product.whereItActs.body}</p>
-              </Reveal>
-              <Reveal delay={0.08}>
-                <ul className="cx-capability-list">
-                  {product.whereItActs.bullets.map((bullet) => (
-                    <li key={bullet}>
-                      <Check size={16} aria-hidden="true" /> {bullet}
-                    </li>
-                  ))}
-                </ul>
-              </Reveal>
-            </div>
-          </div>
-        </section>
-
-        {/* 004 — MOVEMENT */}
-        <section className="cx-section cx-section-tight" aria-label="Movement">
-          <div className="cx-wrap">
-            <div className="cx-split">
-              <Reveal className="cx-split-sticky">
-                <SectionNumber index="004" label="Movement" />
-                <Statement>
-                  Four moves. <Dim>No paperwork.</Dim>
-                </Statement>
-                <p className="cx-lede" style={{ marginTop: "1.6rem" }}>
-                  The working rhythm of {product.name} — select a stage to inspect it.
-                </p>
-              </Reveal>
-              <Reveal delay={0.08}>
-                <PipelineStrip label={`${product.name} movement`} steps={product.movement} />
-              </Reveal>
-            </div>
-          </div>
-        </section>
-
-        {/* 005 — MECHANISM */}
-        <section className="cx-section cx-section-tight" aria-label="Mechanism">
-          <div className="cx-wrap">
-            <Reveal>
-              <SectionNumber index="005" label="Mechanism" />
-              <Statement>
-                {product.mechanism.title.split(".")[0]}.{" "}
-                <Dim>{product.mechanism.title.split(".").slice(1).join(".").trim() || "Illustrated, not measured."}</Dim>
-              </Statement>
-            </Reveal>
-            <div className="cx-pagenum-body" style={{ marginTop: "2.5rem" }}>
-              <Reveal>
-                <div className="cx-diagram">
-                  <ArchitectureDiagram variant={product.slug} title={`${product.name} mechanism diagram`} />
-                </div>
-              </Reveal>
-              <Reveal delay={0.08}>
-                <p className="cx-lede">{product.mechanism.body}</p>
-                <ul className="cx-capability-list" style={{ marginTop: "1.6rem" }}>
-                  {product.mechanism.bullets.map((bullet) => (
-                    <li key={bullet}>
-                      <Check size={16} aria-hidden="true" /> {bullet}
-                    </li>
-                  ))}
-                </ul>
-                {product.mechanism.note && (
-                  <p className="cx-lede" style={{ marginTop: "1.6rem" }}>
-                    <span className="cx-tag is-sim">Sandboxed</span>{" "}
-                    <span style={{ display: "block", marginTop: "0.9rem" }}>{product.mechanism.note}</span>
-                  </p>
-                )}
-              </Reveal>
-            </div>
-          </div>
-        </section>
-
-        {/* 006 — STACK */}
-        <section className="cx-section cx-section-tight" aria-label="The stack">
-          <div className="cx-wrap">
-            <Reveal>
-              <SectionNumber index="006" label="The stack" />
-              <Statement>
-                Three parts. <Dim>Each verifiable alone.</Dim>
-              </Statement>
-            </Reveal>
-            <Reveal delay={0.06}>
-              <div className="cx-workload-grid">
-                {product.stack.map((spec) => (
-                  <div key={spec.title} className="cx-workload">
-                    <TechnicalLabel>{spec.meta}</TechnicalLabel>
-                    <h3 style={{ marginTop: "0.8rem" }}>{spec.title}</h3>
-                    <p>{spec.body}</p>
-                  </div>
-                ))}
-              </div>
-            </Reveal>
-          </div>
-        </section>
-
-        {/* 007 — PROOF */}
-        <section className="cx-section cx-section-tight" aria-label="Proof">
-          <div className="cx-wrap">
-            <Reveal>
-              <SectionNumber index="007" label="Proof" />
-              <Statement>
-                Structure, counted. <Dim>Outcomes, never invented.</Dim>
-              </Statement>
-            </Reveal>
-            <Reveal delay={0.06}>
-              <div style={{ marginTop: "2.5rem" }}>
-                <StatBlock label={`${product.name} structure`} stats={product.proof} />
-                <p style={{ marginTop: "1.4rem" }}>
-                  <TechnicalLabel>{product.proofNote}</TechnicalLabel>
-                </p>
-              </div>
-            </Reveal>
-          </div>
-        </section>
-
-        {/* 008 — HANDOFF */}
-        <section className="cx-section" aria-label="Continue">
-          <div className="cx-wrap">
-            <Reveal>
-              <div className="cx-closing">
-                <SectionNumber index="008" label="Handoff" />
-                <h2>One layer. Three systems.</h2>
-                <p className="cx-closing-sub">{product.handoff}</p>
-                <div className="cx-closing-ctas">
-                  <Link
-                    href="/demo"
-                    className="cx-btn cx-btn-primary"
-                    onClick={() => track(FUNNEL_EVENTS.demoStarted, { product: product.slug })}
-                  >
-                    Book a working session <ArrowRight size={15} />
-                  </Link>
-                  <Link href="/contact" className="cx-btn cx-btn-ghost">
-                    Talk to Cortex
-                  </Link>
-                </div>
-                <nav className="cx-closing-routes" aria-label="Other systems">
-                  {others.map((item) => (
-                    <Link key={item.slug} href={`/products/${item.slug}`}>
-                      {item.name} — {item.category}
-                    </Link>
-                  ))}
-                  <Link href="/platform">The platform</Link>
-                </nav>
-              </div>
-            </Reveal>
-          </div>
-        </section>
-      </main>
-      <SiteFooter />
-    </div>
-  );
+  return <DesignProductPage slug={product.slug} />;
 }
 
 /* ------------------------------------------------------------------ */
@@ -301,6 +71,7 @@ function CaseStudyDetailPage({ story }: { story: CaseStudyDetail }) {
               Case study / {story.company}
             </p>
             <h1>{story.title}</h1>
+            <p className="cx-boundary-note">ILLUSTRATIVE SCENARIO — not a verified customer deployment, testimonial, or measured outcome.</p>
             <p className="cx-product-cat">{story.sector}</p>
             <blockquote className="cx-story-quote" style={{ marginTop: "1.6rem", maxWidth: "26ch" }}>
               “{story.quote}”

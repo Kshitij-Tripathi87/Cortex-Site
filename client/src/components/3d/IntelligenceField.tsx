@@ -1,3 +1,4 @@
+import SceneBoundary from "./SceneBoundary";
 /* Cinematic system: Intelligence Field shell. Capability detection, poster
  * fallback, pointer/scroll rig, offscreen pause. The story is never canvas-only:
  * HTML copy always carries the message. */
@@ -10,7 +11,10 @@ const FieldCanvas = lazy(() => import("./FieldCanvas"));
 function webglAvailable(): boolean {
   try {
     const canvas = document.createElement("canvas");
-    return Boolean(canvas.getContext("webgl2") || canvas.getContext("webgl"));
+    const gl = canvas.getContext("webgl2");
+    const capable = Boolean(gl);
+    gl?.getExtension("WEBGL_lose_context")?.loseContext();
+    return capable;
   } catch {
     return false;
   }
@@ -24,6 +28,7 @@ type IntelligenceFieldProps = {
 export default function IntelligenceField({ className, poster = "/images/hero-field-poster.jpg" }: IntelligenceFieldProps) {
   const reduce = useReducedMotion();
   const hostRef = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState(true);
   const [compact, setCompact] = useState(false);
   const [capable, setCapable] = useState(false);
 
@@ -37,8 +42,9 @@ export default function IntelligenceField({ className, poster = "/images/hero-fi
     const dataSaver =
       typeof navigator !== "undefined" &&
       (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
-    setCapable(!reduce && !dataSaver && webglAvailable());
-    const query = window.matchMedia("(max-width: 720px)");
+    const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+    setCapable(!reduce && !dataSaver && (!memory || memory >= 4) && webglAvailable());
+    const query = window.matchMedia("(max-width: 1024px)");
     const sync = () => setCompact(query.matches);
     sync();
     query.addEventListener("change", sync);
@@ -67,9 +73,16 @@ export default function IntelligenceField({ className, poster = "/images/hero-fi
       });
     };
 
+    let inView = true;
+    const syncVisibility = () => {
+      rig.current.visible.current = inView && !document.hidden;
+      setActive(rig.current.visible.current);
+    };
+    document.addEventListener("visibilitychange", syncVisibility);
     const observer = new IntersectionObserver(
       (entries) => {
-        rig.current.visible.current = entries.some((entry) => entry.isIntersecting);
+        inView = entries.some((entry) => entry.isIntersecting);
+        syncVisibility();
       },
       { threshold: 0 },
     );
@@ -81,6 +94,7 @@ export default function IntelligenceField({ className, poster = "/images/hero-fi
     return () => {
       cancelAnimationFrame(raf);
       observer.disconnect();
+      document.removeEventListener("visibilitychange", syncVisibility);
       window.removeEventListener("pointermove", onPointer);
       window.removeEventListener("scroll", onScroll);
     };
@@ -90,9 +104,9 @@ export default function IntelligenceField({ className, poster = "/images/hero-fi
     <div ref={hostRef} className={className} aria-hidden="true">
       <div className="cx-hero-poster" style={{ backgroundImage: `url(${poster})` }} />
       {capable && (
-        <Suspense fallback={null}>
-          <FieldCanvas rig={rig.current} compact={compact} />
-        </Suspense>
+        <SceneBoundary><Suspense fallback={null}>
+          <FieldCanvas rig={rig.current} compact={compact} active={active} />
+        </Suspense></SceneBoundary>
       )}
     </div>
   );

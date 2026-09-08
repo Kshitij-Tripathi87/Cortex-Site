@@ -1,5 +1,5 @@
 /* Silverline Systems reminder: keep navigation calm, indexed, and product-led; charcoal is the trust layer, cobalt is the signal. */
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
@@ -9,15 +9,15 @@ import ConsentBanner from "./components/ConsentBanner";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { usePageView } from "./hooks/usePageView";
 import Home from "./pages/Home";
-import DetailPage from "./pages/DetailPage";
-import SectionPage from "./pages/SectionPage";
-import ResourcesPage from "./pages/ResourcesPage";
-import LegalPage from "./pages/LegalPage";
-import PricingPage from "./pages/PricingPage";
-import StatusPage from "./pages/StatusPage";
-import ContactPage from "./pages/ContactPage";
-import DemoPage from "./pages/DemoPage";
-import AdminWaitlistPage from "./pages/AdminWaitlistPage";
+const DetailPage = lazy(() => import("./pages/DetailPage"));
+const SectionPage = lazy(() => import("./pages/SectionPage"));
+const ResourcesPage = lazy(() => import("./pages/ResourcesPage"));
+const LegalPage = lazy(() => import("./pages/LegalPage"));
+const PricingPage = lazy(() => import("./pages/PricingPage"));
+const StatusPage = lazy(() => import("./pages/StatusPage"));
+const ContactPage = lazy(() => import("./pages/ContactPage"));
+const DemoPage = lazy(() => import("./pages/DemoPage"));
+const AdminWaitlistPage = lazy(() => import("./pages/AdminWaitlistPage"));
 
 /**
  * Client-side fallback for legacy URLs. The server issues a 301 for these
@@ -43,7 +43,7 @@ function LegacyProductRedirect({ slug }: { slug: string }) {
 function Router() {
   usePageView();
   return (
-    <Switch>
+    <Suspense fallback={<div className="cx-route-loading" role="status">Loading Cortex…</div>}><Switch>
       <Route path="/" component={Home} />
 
       {/* Products (canonical) */}
@@ -88,7 +88,7 @@ function Router() {
       <Route path="/404" component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />
-    </Switch>
+    </Switch></Suspense>
   );
 }
 

@@ -1,6 +1,7 @@
-/* Cinematic system: Cortex Intelligence Field. An abstract graph — nodes,
- * relationships, flowing signals, one cobalt core. Restrained state machine,
- * pointer parallax, scroll drift. No spinning, no flashing. */
+/* Cinematic system: Cortex Intelligence Field. Signals → relationships →
+ * core → propagation → decision. Layered depth (dust, graph, core), a periodic
+ * convergence event with a shockwave ring, scroll-linked fade and dolly.
+ * No spinning, no flashing — the cycle breathes on a 16s loop. */
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame } from "@react-three/fiber";
@@ -23,10 +24,11 @@ function mulberry32(seed: number) {
 }
 
 const NODE_COLOR = new THREE.Color("#aeb9c9");
+const DUST_COLOR = new THREE.Color("#59616e");
 const PULSE_COLOR = new THREE.Color("#5b82ff");
 const CORE_COLOR = new THREE.Color("#2457e6");
 
-const NODE_VERTEX = /* glsl */ `
+const POINT_VERTEX = /* glsl */ `
   attribute float aSize;
   attribute float aPhase;
   uniform float uTime;
@@ -41,16 +43,17 @@ const NODE_VERTEX = /* glsl */ `
   }
 `;
 
-const NODE_FRAGMENT = /* glsl */ `
+const POINT_FRAGMENT = /* glsl */ `
   precision mediump float;
   uniform vec3 uColor;
   uniform float uOpacity;
+  uniform float uFade;
   varying float vAlpha;
   void main() {
     float d = length(gl_PointCoord - 0.5);
     float disc = smoothstep(0.5, 0.1, d);
     if (disc < 0.01) discard;
-    gl_FragColor = vec4(uColor, disc * vAlpha * uOpacity);
+    gl_FragColor = vec4(uColor, disc * vAlpha * uOpacity * uFade);
   }
 `;
 
@@ -74,17 +77,21 @@ function glowTexture(): THREE.Texture {
 
 function Field({ rig, compact }: { rig: FieldRig; compact: boolean }) {
   const nodeCount = compact ? 90 : 210;
+  const dustCount = compact ? 120 : 320;
   const maxEdges = compact ? 150 : 380;
   const pulseCount = compact ? 5 : 10;
 
-  const pointsRef = useRef<THREE.Points>(null!);
   const groupRef = useRef<THREE.Group>(null!);
+  const dustRef = useRef<THREE.Points>(null!);
   const coreRef = useRef<THREE.Mesh>(null!);
+  const coreMatRef = useRef<THREE.MeshBasicMaterial>(null!);
   const glowRef = useRef<THREE.Sprite>(null!);
+  const ringRef = useRef<THREE.Mesh>(null!);
+  const ringMatRef = useRef<THREE.MeshBasicMaterial>(null!);
   const spriteRefs = useRef<(THREE.Sprite | null)[]>([]);
   const timeRef = useRef(0);
 
-  const { nodeGeometry, nodeMaterial, edgeGeometry, endpoints } = useMemo(() => {
+  const graph = useMemo(() => {
     const rand = mulberry32(20260908);
     const positions = new Float32Array(nodeCount * 3);
     const sizes = new Float32Array(nodeCount);
@@ -124,29 +131,49 @@ function Field({ rig, compact }: { rig: FieldRig; compact: boolean }) {
       }
     });
 
-    const nodeGeometry = new THREE.BufferGeometry();
-    nodeGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    nodeGeometry.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
-    nodeGeometry.setAttribute("aPhase", new THREE.BufferAttribute(phases, 1));
+    // Background dust: a deep, quiet plane far behind the graph.
+    const dustRand = mulberry32(77);
+    const dustPositions = new Float32Array(dustCount * 3);
+    const dustSizes = new Float32Array(dustCount);
+    const dustPhases = new Float32Array(dustCount);
+    for (let i = 0; i < dustCount; i++) {
+      dustPositions[i * 3] = (dustRand() * 2 - 1) * 16;
+      dustPositions[i * 3 + 1] = (dustRand() * 2 - 1) * 7;
+      dustPositions[i * 3 + 2] = -4 - dustRand() * 13;
+      dustSizes[i] = 0.8 + dustRand() * 1.4;
+      dustPhases[i] = dustRand() * Math.PI * 2;
+    }
 
-    const nodeMaterial = new THREE.ShaderMaterial({
-      uniforms: {
-        uTime: { value: 0 },
-        uPixelRatio: { value: Math.min(window.devicePixelRatio, 1.75) },
-        uColor: { value: NODE_COLOR },
-        uOpacity: { value: 0.85 },
-      },
-      vertexShader: NODE_VERTEX,
-      fragmentShader: NODE_FRAGMENT,
-      transparent: true,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending,
-    });
+    const pixelRatio = Math.min(window.devicePixelRatio, 1.75);
+    const makePoints = (count: number, pos: Float32Array, size: Float32Array, phase: Float32Array, color: THREE.Color, opacity: number) => {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      geometry.setAttribute("aSize", new THREE.BufferAttribute(size, 1));
+      geometry.setAttribute("aPhase", new THREE.BufferAttribute(phase, 1));
+      const material = new THREE.ShaderMaterial({
+        uniforms: {
+          uTime: { value: 0 },
+          uPixelRatio: { value: pixelRatio },
+          uColor: { value: color },
+          uOpacity: { value: opacity },
+          uFade: { value: 1 },
+        },
+        vertexShader: POINT_VERTEX,
+        fragmentShader: POINT_FRAGMENT,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      });
+      return { geometry, material, count };
+    };
+
+    const nodes = makePoints(nodeCount, positions, sizes, phases, NODE_COLOR, 0.85);
+    const dust = makePoints(dustCount, dustPositions, dustSizes, dustPhases, DUST_COLOR, 0.5);
 
     const edgeGeometry = new THREE.BufferGeometry();
     edgeGeometry.setAttribute("position", new THREE.BufferAttribute(edgePositions, 3));
 
-    return { nodeGeometry, nodeMaterial, edgeGeometry, endpoints: ends, edgeCount: pairs.length };
+    return { nodes, dust, edgeGeometry, endpoints: ends };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compact]);
 
@@ -191,11 +218,11 @@ function Field({ rig, compact }: { rig: FieldRig; compact: boolean }) {
   const pulses = useMemo(
     () =>
       Array.from({ length: pulseCount }, () => ({
-        edge: Math.floor(Math.random() * Math.max(1, endpoints.length / 6)),
+        edge: Math.floor(Math.random() * Math.max(1, graph.endpoints.length / 6)),
         t: Math.random(),
         speed: 0.1 + Math.random() * 0.16,
       })),
-    [pulseCount, endpoints],
+    [pulseCount, graph.endpoints],
   );
 
   const tmp = useMemo(() => new THREE.Vector3(), []);
@@ -207,23 +234,34 @@ function Field({ rig, compact }: { rig: FieldRig; compact: boolean }) {
     timeRef.current += dt;
     const t = timeRef.current;
 
+    // Scroll: the field recedes and dissolves as the hero leaves.
+    const scroll = Math.min(Math.max(rig.scroll.current, 0), 1);
+    const fade = 1 - THREE.MathUtils.smoothstep(scroll, 0.25, 0.95);
+
     // State machine: 16s cycle. IDLE → SIGNAL → ACTIVATE → PROCESS → PATH → IDLE.
     const phase = t % 16;
     const signal = phase > 5.5 && phase < 9 ? Math.sin(((phase - 5.5) / 3.5) * Math.PI) : 0;
     const process = phase > 9 && phase < 12.5 ? Math.sin(((phase - 9) / 3.5) * Math.PI) : 0;
+    const ringP = phase > 9 && phase < 12.5 ? (phase - 9) / 3.5 : -1;
 
-    nodeMaterial.uniforms.uTime.value = t;
-    edgeMaterial.opacity = 0.2 + signal * 0.12;
+    graph.nodes.material.uniforms.uTime.value = t;
+    graph.nodes.material.uniforms.uFade.value = fade;
+    graph.dust.material.uniforms.uTime.value = t;
+    graph.dust.material.uniforms.uFade.value = fade;
+    dustRef.current.rotation.y = t * 0.008;
+    edgeMaterial.opacity = (0.2 + signal * 0.12) * fade;
 
     // Core breathes with the cycle; group drifts almost imperceptibly.
     const coreScale = 1 + process * 0.28 + Math.sin(t * 0.7) * 0.04;
     coreRef.current.scale.setScalar(coreScale);
-    glowMaterial.opacity = 0.45 + signal * 0.25 + process * 0.25;
+    coreMatRef.current.opacity = fade;
+    glowMaterial.opacity = (0.45 + signal * 0.25 + process * 0.25) * fade;
     glowRef.current.scale.setScalar(2.4 + process * 1.1);
     groupRef.current.rotation.y = Math.sin(t * 0.05) * 0.08;
 
-    // Signal pulses travel the relationships.
-    const edgeTotal = Math.max(1, endpoints.length / 6);
+    // Decision event: pulses converge on the core, which answers with one ring.
+    const converge = 1 - process * 0.35;
+    const edgeTotal = Math.max(1, graph.endpoints.length / 6);
     for (let i = 0; i < pulses.length; i++) {
       const pulse = pulses[i];
       pulse.t += dt * pulse.speed * (1 + signal * 1.6);
@@ -235,34 +273,47 @@ function Field({ rig, compact }: { rig: FieldRig; compact: boolean }) {
       if (!sprite) continue;
       const o = pulse.edge * 6;
       tmp.set(
-        endpoints[o] + (endpoints[o + 3] - endpoints[o]) * pulse.t,
-        endpoints[o + 1] + (endpoints[o + 4] - endpoints[o + 1]) * pulse.t,
-        endpoints[o + 2] + (endpoints[o + 5] - endpoints[o + 2]) * pulse.t,
+        graph.endpoints[o] + (graph.endpoints[o + 3] - graph.endpoints[o]) * pulse.t,
+        graph.endpoints[o + 1] + (graph.endpoints[o + 4] - graph.endpoints[o + 1]) * pulse.t,
+        graph.endpoints[o + 2] + (graph.endpoints[o + 5] - graph.endpoints[o + 2]) * pulse.t,
       );
+      tmp.multiplyScalar(converge);
       sprite.position.copy(tmp);
       const s = 0.34 + signal * 0.22;
       sprite.scale.set(s, s, 1);
     }
-    pulseMaterial.opacity = 0.55 + signal * 0.4;
+    pulseMaterial.opacity = (0.55 + signal * 0.4) * fade;
 
-    // Camera: pointer parallax + scroll drift, heavily damped.
+    if (ringP >= 0) {
+      const s = 0.6 + ringP * 5.2;
+      ringRef.current.scale.set(s, s, 1);
+      ringMatRef.current.opacity = (1 - ringP) * 0.5 * fade;
+    } else {
+      ringMatRef.current.opacity = 0;
+    }
+
+    // Camera: pointer parallax + scroll drift and dolly, heavily damped.
     const pointer = rig.pointer.current;
-    const scroll = Math.min(Math.max(rig.scroll.current, 0), 1);
-    camTarget.set(pointer.x * 0.9, 0.6 + pointer.y * -0.5 + scroll * 2.4, 13);
+    camTarget.set(pointer.x * 0.9, 0.6 + pointer.y * -0.5 + scroll * 2.4, 13 + scroll * 2.5);
     state.camera.position.lerp(camTarget, 1 - Math.exp(-dt * 2.2));
     state.camera.lookAt(0, scroll * 1.6, 0);
   });
 
   return (
     <group ref={groupRef}>
-      <points ref={pointsRef} geometry={nodeGeometry} material={nodeMaterial} frustumCulled={false} />
+      <points geometry={graph.dust.geometry} material={graph.dust.material} frustumCulled={false} ref={dustRef} />
+      <points geometry={graph.nodes.geometry} material={graph.nodes.material} frustumCulled={false} />
       {/* eslint-disable-next-line react/no-unknown-property */}
-      <lineSegments geometry={edgeGeometry} material={edgeMaterial} frustumCulled={false} />
+      <lineSegments geometry={graph.edgeGeometry} material={edgeMaterial} frustumCulled={false} />
       <mesh ref={coreRef}>
         <icosahedronGeometry args={[0.3, 1]} />
-        <meshBasicMaterial color={CORE_COLOR} toneMapped={false} />
+        <meshBasicMaterial ref={coreMatRef} color={CORE_COLOR} toneMapped={false} transparent />
       </mesh>
       <sprite ref={glowRef} material={glowMaterial} scale={[2.4, 2.4, 1]} />
+      <mesh ref={ringRef}>
+        <ringGeometry args={[0.95, 1, 64]} />
+        <meshBasicMaterial ref={ringMatRef} color={PULSE_COLOR} toneMapped={false} transparent opacity={0} blending={THREE.AdditiveBlending} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
       {pulses.map((_, i) => (
         <sprite
           key={i}
@@ -277,13 +328,17 @@ function Field({ rig, compact }: { rig: FieldRig; compact: boolean }) {
   );
 }
 
-export default function FieldCanvas({ rig, compact }: { rig: FieldRig; compact: boolean }) {
+export default function FieldCanvas({ rig, compact, active }: { rig: FieldRig; compact: boolean; active: boolean }) {
   return (
     <Canvas
-      dpr={[1, 1.75]}
-      camera={{ position: [0, 0.6, 13], fov: 42, near: 0.1, far: 60 }}
+      frameloop={active ? "always" : "never"}
+      dpr={[1, compact ? 1.25 : 1.75]}
+      camera={{ position: [0, 0.6, 13], fov: 42, near: 0.1, far: 80 }}
       gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
-      onCreated={({ gl }) => gl.setClearColor(0x000000, 0)}
+      onCreated={({ gl }) => {
+        gl.setClearColor(0x000000, 0);
+        gl.domElement.addEventListener("webglcontextlost", () => { gl.domElement.style.display = "none"; });
+      }}
       aria-hidden="true"
     >
       <Field rig={rig} compact={compact} />

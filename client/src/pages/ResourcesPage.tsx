@@ -14,9 +14,9 @@ import { caseStudies } from "@/lib/cortexContent";
 export type ResourcesView = "overview" | "case-studies" | "insights" | "blog";
 
 const INSIGHT_POSTS = [
-  { type: "FIELD NOTE", title: "The operating system is not the dashboard", author: "Maya Chen", role: "VP, Product" },
-  { type: "BRIEFING", title: "Five signals that your data stack is becoming a bottleneck", author: "Jon Bell", role: "Research Lead" },
-  { type: "PERSPECTIVE", title: "Why high-performing teams design for the handoff", author: "Priya Nair", role: "Chief of Staff" },
+  { type: "FIELD NOTE", title: "The operating system is not the dashboard", author: "Editorial preview", role: "Not yet published" },
+  { type: "BRIEFING", title: "Five signals that your data stack is becoming a bottleneck", author: "Editorial preview", role: "Not yet published" },
+  { type: "PERSPECTIVE", title: "Why high-performing teams design for the handoff", author: "Editorial preview", role: "Not yet published" },
 ];
 
 const VIEW_META: Record<ResourcesView, { path: string; eyebrow: string; title: string; intro: string }> = {
@@ -30,7 +30,7 @@ const VIEW_META: Record<ResourcesView, { path: string; eyebrow: string; title: s
     path: "/resources/case-studies",
     eyebrow: "RESOURCES / CASE STUDIES",
     title: "Selected stories.",
-    intro: "How teams moved from “what happened?” to “what do we do next?”",
+    intro: "Illustrative operating scenarios, not verified customer deployments or measured outcomes.",
   },
   insights: {
     path: "/resources/insights",
@@ -185,6 +185,7 @@ function CaseStudiesBody() {
               <p className="eyebrow">{story.sector.toUpperCase()}</p>
               <strong>{story.title}</strong>
               <p>“{story.quote}”</p>
+              <span className="cx-kicker">Illustrative scenario · not a customer result</span>
               <span className="resource-card-action">
                 Read the story <ArrowRight size={16} />
               </span>

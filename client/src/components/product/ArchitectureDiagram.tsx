@@ -1,109 +1,121 @@
-/* Cinematic system: sealed-chain / fan / tree SVGs. Quiet hairlines; only the
- * working path flows. Diagrams are illustration, never data. */
-type Variant = "workflo" | "nexus" | "astra";
-
+import { useId } from "react";
+import type { ProductSlug } from "@/lib/designContent";
 function Box({
   x,
   y,
-  w,
-  h,
   label,
-  sub,
   hot = false,
 }: {
   x: number;
   y: number;
-  w: number;
-  h: number;
   label: string;
-  sub?: string;
   hot?: boolean;
 }) {
   return (
     <g>
-      <rect x={x} y={y} width={w} height={h} rx={2} className={`cx-arch-node${hot ? " is-hot" : ""}`} />
-      <text x={x + w / 2} y={y + (sub ? h / 2 - 1 : h / 2 + 4)} textAnchor="middle" className="cx-arch-label">
+      <rect
+        x={x - 85}
+        y={y - 23}
+        width={170}
+        height={46}
+        className={`cx-arch-node${hot ? " is-hot" : ""}`}
+      />
+      <text x={x} y={y + 4} textAnchor="middle" className="cx-arch-label">
         {label}
       </text>
-      {sub && (
-        <text x={x + w / 2} y={y + h / 2 + 14} textAnchor="middle" className="cx-arch-sub">
-          {sub}
+    </g>
+  );
+}
+const descriptions = {
+  workflo:
+    "Authorized code enters an isolated sandbox. Execution produces a hash and receipt for verification. This is a conceptual model, not a live runner.",
+  nexus:
+    "World State branches into signals, graph, and events; these converge on the Nexus core. Scenarios, agents, and evidence inform a decision for human review.",
+  astra:
+    "A mission leads to requirements and candidate architectures. Constraints and trade-offs inform a mission plan. All exploration stays in simulation.",
+};
+export default function ArchitectureDiagram({
+  variant,
+  title,
+}: {
+  variant: ProductSlug;
+  title: string;
+}) {
+  const id = useId();
+  const rows =
+    variant === "nexus"
+      ? [
+          ["WORLD STATE"],
+          ["SIGNALS", "GRAPH", "EVENTS"],
+          ["NEXUS CORE"],
+          ["SCENARIO", "AGENTS", "EVIDENCE"],
+          ["DECISION"],
+        ]
+      : variant === "workflo"
+        ? [
+            ["AUTHORIZED CODE"],
+            ["SANDBOX"],
+            ["EXECUTION"],
+            ["HASH"],
+            ["RECEIPT"],
+          ]
+        : [
+            ["MISSION"],
+            ["REQUIREMENTS"],
+            ["ARCHITECTURE A", "ARCHITECTURE B", "ARCHITECTURE C"],
+            ["CONSTRAINTS", "TRADE-OFFS"],
+            ["MISSION PLAN"],
+          ];
+  const positions = (count: number) =>
+    count === 1 ? [320] : count === 2 ? [210, 430] : [110, 320, 530];
+  return (
+    <div
+      className="cx-architecture-scroll"
+      tabIndex={0}
+      role="region"
+      aria-label={`${title}, scroll horizontally on small screens`}
+    >
+      <svg
+        viewBox="0 0 640 480"
+        className="cx-arch cx-arch-tall"
+        role="img"
+        aria-labelledby={`${id}-title ${id}-desc`}
+      >
+        <title id={`${id}-title`}>{title}</title>
+        <desc id={`${id}-desc`}>{descriptions[variant]}</desc>
+        {rows.slice(0, -1).map((row, i) => (
+          <g key={i}>
+            {positions(row.length).map(x => (
+              <path
+                key={`a${x}`}
+                d={`M${x} ${53 + i * 88} V${74 + i * 88} H320`}
+                className="cx-arch-edge is-flow"
+              />
+            ))}
+            {positions(rows[i + 1].length).map(x => (
+              <path
+                key={`b${x}`}
+                d={`M320 ${74 + i * 88} H${x} V${95 + i * 88}`}
+                className="cx-arch-edge is-flow"
+              />
+            ))}
+          </g>
+        ))}
+        {rows.map((row, i) =>
+          row.map((label, n) => (
+            <Box
+              key={label}
+              x={positions(row.length)[n]}
+              y={30 + i * 88}
+              label={label}
+              hot={i === 2}
+            />
+          ))
+        )}
+        <text x={320} y={451} textAnchor="middle" className="cx-arch-sub">
+          CONCEPTUAL MODEL / HUMAN REVIEW REQUIRED
         </text>
-      )}
-    </g>
-  );
-}
-
-function Edge({ d, flow = false, ret = false }: { d: string; flow?: boolean; ret?: boolean }) {
-  return <path d={d} className={`cx-arch-edge${flow ? " is-flow" : ""}${ret ? " is-return" : ""}`} />;
-}
-
-function WorkfloDiagram() {
-  return (
-    <g>
-      <Box x={16} y={150} w={128} h={60} label="INPUT" sub="source docs" />
-      <Box x={180} y={150} w={128} h={60} label="CHECK" sub="rule engine" />
-      <Box x={344} y={150} w={128} h={60} label="SEAL" sub="hash + anchor" hot />
-      <Box x={508} y={150} w={116} h={60} label="RECORD" sub="immutable" />
-      <Edge d="M144 180 H180" flow />
-      <Edge d="M308 180 H344" flow />
-      <Edge d="M472 180 H508" flow />
-      <text x={320} y={262} textAnchor="middle" className="cx-arch-sub">
-        MUTABLE REALITY → SEALED RECORD → VERIFIABLE PROOF
-      </text>
-      <text x={320} y={104} textAnchor="middle" className="cx-arch-sub">
-        EVERY HANDOFF CARRIES ITS OWN PROOF
-      </text>
-    </g>
-  );
-}
-
-function NexusDiagram() {
-  return (
-    <g>
-      <Box x={16} y={70} w={140} h={52} label="SCHEDULE" sub="plan feed" />
-      <Box x={16} y={154} w={140} h={52} label="CREW" sub="roster feed" />
-      <Box x={16} y={238} w={140} h={52} label="FLEET" sub="asset feed" />
-      <Box x={250} y={134} w={140} h={92} label="NEXUS" sub="forecast core" hot />
-      <Box x={484} y={96} w={140} h={52} label="PLAN" sub="ranked options" />
-      <Box x={484} y={212} w={140} h={52} label="ALERT" sub="early warning" />
-      <Edge d="M156 96 C 210 96, 200 150, 250 160" />
-      <Edge d="M156 180 H250" flow />
-      <Edge d="M156 264 C 210 264, 200 210, 250 200" />
-      <Edge d="M390 160 C 440 160, 430 122, 484 122" flow />
-      <Edge d="M390 200 C 440 200, 430 238, 484 238" />
-    </g>
-  );
-}
-
-function AstraDiagram() {
-  return (
-    <g>
-      <Box x={240} y={24} w={160} h={54} label="MISSION ORDER" sub="objective" hot />
-      <Box x={40} y={140} w={150} h={54} label="ELEMENT A" sub="course" />
-      <Box x={245} y={140} w={150} h={54} label="ELEMENT B" sub="course" />
-      <Box x={450} y={140} w={150} h={54} label="ELEMENT C" sub="course" />
-      <Box x={140} y={252} w={170} h={54} label="AFTER-ACTION" sub="sealed record" />
-      <Box x={330} y={252} w={170} h={54} label="SANDBOX" sub="sandboxed sim" />
-      <Edge d="M320 78 V104 H115 V140" />
-      <Edge d="M320 78 V140" flow />
-      <Edge d="M320 78 V104 H525 V140" />
-      <Edge d="M225 194 V226 H240 V252" />
-      <Edge d="M415 194 V226 H415 V252" flow />
-      <Edge d="M140 279 H60 V52 H240" ret />
-      <text x={320} y={336} textAnchor="middle" className="cx-arch-sub">
-        EVERY RUN RETURNS ITS LESSONS — SANDBOXED, SEALED
-      </text>
-    </g>
-  );
-}
-
-export default function ArchitectureDiagram({ variant, title }: { variant: Variant; title: string }) {
-  return (
-    <svg viewBox="0 0 640 360" className="cx-arch" role="img" aria-label={title}>
-      {variant === "workflo" && <WorkfloDiagram />}
-      {variant === "nexus" && <NexusDiagram />}
-      {variant === "astra" && <AstraDiagram />}
-    </svg>
+      </svg>
+    </div>
   );
 }

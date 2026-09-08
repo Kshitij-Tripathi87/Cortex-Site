@@ -116,3 +116,7 @@ client/public/__manus__/
 
 # Kilo agent/plan state
 .kilo/
+
+# Playwright
+test-results/
+playwright-report/
