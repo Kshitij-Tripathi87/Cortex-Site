@@ -9,7 +9,7 @@ test("hero carries the story", async ({ page }) => {
 
 test("flow stages are inspectable", async ({ page }) => {
   await page.goto("/");
-  const forecast = page.getByRole("button", { name: /forecast/i });
+  const forecast = page.getByRole("group", { name: "How intelligence moves through Cortex" }).getByRole("button", { name: /^002 FORECAST/i });
   await forecast.scrollIntoViewIfNeeded();
   await forecast.click();
   await expect(page.getByRole("heading", { name: /002 — forecast/i })).toBeVisible();

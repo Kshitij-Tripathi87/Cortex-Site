@@ -30,7 +30,7 @@ test.describe("mobile nav", () => {
 
 test("footer reopens consent preferences", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: /essential only/i }).click();
+  await page.getByRole("button", { name: /^essential only$/i }).click();
   const prefs = page.getByRole("button", { name: /cookie preferences/i });
   await prefs.scrollIntoViewIfNeeded();
   await prefs.click();

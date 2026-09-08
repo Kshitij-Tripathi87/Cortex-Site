@@ -12,7 +12,7 @@ for (const product of PRODUCTS) {
     await expect(page.getByRole("heading", { name: product.name, exact: true })).toBeVisible();
     await expect(page.getByText(`001 / ${product.cat}`)).toBeVisible();
 
-    const second = page.getByRole("button", { name: new RegExp(product.second, "i") });
+    const second = page.getByRole("button", { name: new RegExp(`^002 ${product.second}\\b`, "i") });
     await second.scrollIntoViewIfNeeded();
     await second.click();
     await expect(second).toHaveAttribute("aria-expanded", "true");
