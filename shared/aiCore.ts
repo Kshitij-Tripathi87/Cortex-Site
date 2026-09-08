@@ -12,18 +12,19 @@ export type GroundingEntry = {
 export const AI_SYSTEM_PROMPT =
   "You are Cortex AI Core, a calm, precise operator assistant for the Cortex platform. " +
   "Cortex is the intelligence layer for teams building critical systems, organized around three products: " +
-  "Sense (see the system, not just the signal), Decide (move from insight to action with context), and Scale (make the better way repeatable). " +
+  "Workflo (see the system, not just the signal), Nexus (move from insight to action with context), and ASTRA (make the better way repeatable). " +
   "Answer in 2-4 sentences. Be specific and evidence-led. Never invent features. " +
   "If you are unsure, point the user to the documentation overview.";
 
 export const groundingEntries: GroundingEntry[] = [
-  { keywords: ["sense", "signal", "context", "observe"], answer: "Cortex Sense connects operational signals into a shared context so teams can investigate what changed and why it matters before it becomes a costly surprise.", source: { label: "Sense product guide", href: "/product/sense" } },
-  { keywords: ["decide", "decision", "evidence", "action"], answer: "Cortex Decide turns a complex question into an evidence-backed decision path with visible trade-offs, owners, and next actions.", source: { label: "Decide product guide", href: "/product/decide" } },
-  { keywords: ["scale", "workflow", "repeat", "standardize"], answer: "Cortex Scale codifies proven operating patterns into governed workflows that travel across functions without flattening local expertise.", source: { label: "Scale product guide", href: "/product/scale" } },
+  { keywords: ["workflo", "sense", "signal", "context", "observe"], answer: "Workflo connects operational signals into a shared context so teams can investigate what changed and why it matters before it becomes a costly surprise.", source: { label: "Workflo product guide", href: "/products/workflo" } },
+  { keywords: ["nexus", "decide", "decision", "evidence", "action"], answer: "Nexus turns a complex question into an evidence-backed decision path with visible trade-offs, owners, and next actions.", source: { label: "Nexus product guide", href: "/products/nexus" } },
+  { keywords: ["astra", "scale", "workflow", "repeat", "standardize"], answer: "ASTRA codifies proven operating patterns into governed workflows that travel across functions without flattening local expertise.", source: { label: "ASTRA product guide", href: "/products/astra" } },
   { keywords: ["platform", "architecture", "integration", "sandbox", "connect"], answer: "The Cortex platform connects the systems teams already trust, creates a shared operating context, and routes decisions into governed workflows.", source: { label: "Platform foundations", href: "/platform" } },
   { keywords: ["docs", "documentation", "api", "sdk", "start"], answer: "Start with the documentation foundations for core concepts, then move into APIs, SDKs, integrations, and trust and governance.", source: { label: "Documentation overview", href: "/docs" } },
-  { keywords: ["security", "trust", "governance", "permission", "audit"], answer: "Cortex governance covers security, role-aware permissions, and auditable decision trails so operators can move quickly without losing control.", source: { label: "Trust & governance", href: "/docs" } },
-  { keywords: ["price", "pricing", "cost", "sales", "demo", "contact"], answer: "Bring us the hard question and we will make the first conversation useful. Start with a working session to walk through one decision your team needs to make better.", source: { label: "Talk to Cortex", href: "/sales" } },
+  { keywords: ["security", "trust", "governance", "permission", "audit"], answer: "Cortex governance covers security, role-aware permissions, and auditable decision trails so operators can move quickly without losing control.", source: { label: "Trust & governance", href: "/security" } },
+  { keywords: ["price", "pricing", "cost", "sales", "demo", "contact"], answer: "Bring us the hard question and we will make the first conversation useful. Start with a working session to walk through one decision your team needs to make better.", source: { label: "Book a demo", href: "/demo" } },
+  { keywords: ["solution", "industry", "health", "finance", "industrial"], answer: "Cortex serves healthcare operations, risk and compliance, and industrial systems teams — each with operating patterns shaped to their constraints.", source: { label: "Solutions overview", href: "/solutions" } },
 ];
 
 // Pick the best grounded answer for a free-text prompt. Returns a default
@@ -44,9 +45,10 @@ export function groundPrompt(prompt: string): GroundingEntry {
 // Contextual follow-up suggestions based on the prompt topic.
 export function followUpsFor(prompt: string): string[] {
   const lower = prompt.toLowerCase();
-  if (lower.includes("sense")) return ["How does Sense connect signals?", "What should we instrument first?", "Compare Sense and Decide"];
-  if (lower.includes("decide")) return ["How are decision trails governed?", "Compare Decide and Sense", "Where do I start in the docs?"];
-  if (lower.includes("scale")) return ["How do governed workflows work?", "Can teams keep local overrides?", "Show platform foundations"];
+  if (lower.includes("workflo") || lower.includes("sense")) return ["How does Workflo connect signals?", "What should we instrument first?", "Compare Workflo and Nexus"];
+  if (lower.includes("nexus") || lower.includes("decide")) return ["How are decision trails governed?", "Compare Nexus and Workflo", "Where do I start in the docs?"];
+  if (lower.includes("astra") || lower.includes("scale")) return ["How do governed workflows work?", "Can teams keep local overrides?", "Show platform foundations"];
   if (lower.includes("platform") || lower.includes("docs")) return ["Show platform foundations", "How do integrations work?", "Explain Cortex governance"];
-  return ["Which product fits our operating model?", "Where should I start in the docs?", "Explain Cortex Sense"];
+  if (lower.includes("price") || lower.includes("demo") || lower.includes("sales")) return ["Book a working session", "What does a pilot include?", "Talk to Cortex"];
+  return ["Which product fits our operating model?", "Where should I start in the docs?", "Explain Workflo"];
 }

@@ -1,49 +1,88 @@
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { AlertCircle, Home } from "lucide-react";
-import { useLocation } from "wouter";
+/* Silverline Systems reminder: a 404 is still Cortex — indexed, calm, and helpful.
+ * Say what happened, offer the way back, never a dead end. */
+
+import { Link } from "wouter";
+import { ArrowLeft, ArrowRight } from "lucide-react";
+import SEO from "@/components/SEO";
+import { SiteFooter, SiteHeader } from "@/components/SiteChrome";
 
 export default function NotFound() {
-  const [, setLocation] = useLocation();
-
-  const handleGoHome = () => {
-    setLocation("/");
-  };
-
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
-      <Card className="w-full max-w-lg mx-4 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-        <CardContent className="pt-8 pb-8 text-center">
-          <div className="flex justify-center mb-6">
-            <div className="relative">
-              <div className="absolute inset-0 bg-red-100 rounded-full animate-pulse" />
-              <AlertCircle className="relative h-16 w-16 text-red-500" />
+    <div className="detail-site">
+      <SEO path="/404" title="Page not found — Cortex" description="The page you’re looking for doesn’t exist or was moved." noIndex />
+      <SiteHeader />
+      <main>
+        <section className="section-page-hero" data-reveal>
+          <div className="section-page-copy">
+            <Link href="/" className="back-link">
+              <ArrowLeft size={15} /> Cortex home
+            </Link>
+            <p className="eyebrow">404 / NOT FOUND</p>
+            <h1>
+              Off the
+              <br />
+              <em>system map.</em>
+            </h1>
+            <p className="section-page-intro">
+              This page doesn’t exist or was moved. The system is fine — let’s get you back to it.
+            </p>
+            <div className="notfound-actions">
+              <Link href="/" className="button-primary">
+                Back to home <ArrowRight size={16} />
+              </Link>
+              <Link href="/contact" className="text-link">
+                Talk to Cortex <ArrowRight size={16} />
+              </Link>
             </div>
           </div>
-
-          <h1 className="text-4xl font-bold text-slate-900 mb-2">404</h1>
-
-          <h2 className="text-xl font-semibold text-slate-700 mb-4">
-            Page Not Found
-          </h2>
-
-          <p className="text-slate-600 mb-8 leading-relaxed">
-            Sorry, the page you are looking for doesn't exist.
-            <br />
-            It may have been moved or deleted.
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Button
-              onClick={handleGoHome}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg"
-            >
-              <Home className="w-4 h-4 mr-2" />
-              Go Home
-            </Button>
+          <div className="section-page-visual plain-surface">
+            <span className="visual-readout">
+              CORTEX / 404<small>recalibrating</small>
+            </span>
           </div>
-        </CardContent>
-      </Card>
+        </section>
+
+        <section className="section-page-list">
+          <div className="detail-rail">WAYS BACK</div>
+          <div className="section-page-list-copy">
+            <p className="eyebrow">POPULAR ROUTES</p>
+            <h2>
+              Start <span>here.</span>
+            </h2>
+            <div className="page-link-list">
+              <Link href="/platform">
+                <div>
+                  <strong>Platform</strong>
+                  <small>The intelligence layer beneath the work.</small>
+                </div>
+                <ArrowRight size={16} />
+              </Link>
+              <Link href="/products">
+                <div>
+                  <strong>Products</strong>
+                  <small>Workflo, Nexus, and ASTRA.</small>
+                </div>
+                <ArrowRight size={16} />
+              </Link>
+              <Link href="/resources">
+                <div>
+                  <strong>Resources</strong>
+                  <small>Case studies, insights, and field notes.</small>
+                </div>
+                <ArrowRight size={16} />
+              </Link>
+              <Link href="/demo">
+                <div>
+                  <strong>Book a demo</strong>
+                  <small>Walk through one real decision.</small>
+                </div>
+                <ArrowRight size={16} />
+              </Link>
+            </div>
+          </div>
+        </section>
+      </main>
+      <SiteFooter />
     </div>
   );
 }

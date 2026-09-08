@@ -133,3 +133,15 @@
 - [x] Add stronger layered scroll-entry motion across the home-page sections.
 - [x] Keep the motion accessible with reduced-motion support and stable mobile spacing.
 - [x] Verify the home page visually and save a new delivery checkpoint.
+
+## Marketing Platform v1 foundation
+
+- [x] Define canonical IA in shared/site.ts (products, platform, solutions, industries, security, resources, pricing, company, contact, demo, legal, status) with legacy /product redirects.
+- [x] Add per-route SEO (title, description, canonical, OG/Twitter, JSON-LD) plus sitemap.xml and robots.txt.
+- [x] Add Zod boundary schemas in shared/schemas.ts, parsed on client and server.
+- [x] Split the server into routes/middleware/services (contact, waitlist, demo, newsletter, AI chat, analytics, content, status, admin) with rate limits and hardened security headers.
+- [x] Add Supabase migration + seed + RLS design; server mirrors to Supabase when configured and falls back to local JSON.
+- [x] Add first-party consent-gated analytics, cookie preferences, and funnel event tracking.
+- [x] Add legal hub (privacy, terms, acceptable use, cookies, AI terms), pricing, resources, contact, demo, status, and Silverline 404 pages.
+- [x] Add unit tests, CI workflow, .env-example, and docs/FOUNDATION.md.
+- [x] Verify typecheck, tests, production build, and full API smoke test.

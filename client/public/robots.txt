@@ -1,0 +1,10 @@
+# Cortex — crawler rules.
+# Admin and API routes are never indexed; status is useful to humans, not search.
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /status
+Disallow: /404
+
+Sitemap: https://cortex.systems/sitemap.xml

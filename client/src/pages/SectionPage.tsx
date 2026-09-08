@@ -1,19 +1,103 @@
+/* Silverline Systems reminder: section pages are orientation, not destination. Say
+ * what this part of the system is for, then hand the reader somewhere useful. */
 import { FormEvent, useEffect, useState } from "react";
 import { Link } from "wouter";
-import { ArrowLeft, ArrowRight, BookOpen, Building2, Check, FileText, LoaderCircle, Mail, ShieldCheck, Sparkles, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, LoaderCircle, Mail, X } from "lucide-react";
+import SEO from "@/components/SEO";
+import { SiteFooter, SiteHeader } from "@/components/SiteChrome";
 import { products } from "@/lib/cortexContent";
 
-const pageContent = {
-  platform: { eyebrow: "PLATFORM", title: "The intelligence layer beneath the work.", intro: "Connect the systems you already trust. Give every team the context to move.", variant: "stack" as const, links: [{ label: "Architecture overview", body: "How Cortex connects signal, context, and action." }, { label: "Trust & governance", body: "Permissions, controls, and an auditable operating model." }, { label: "Integration patterns", body: "Bring Cortex into the systems your teams already use." }] },
-  docs: { eyebrow: "DOCUMENTATION", title: "A clear path from question to capability.", intro: "Start with the mental model. Go deep when you need to.", variant: "grid" as const, links: [{ label: "Platform foundations", body: "Core concepts and the Cortex system map." }, { label: "Build with Cortex", body: "APIs, SDKs, and practical implementation patterns." }, { label: "Trust & governance", body: "Security, permissions, and operating controls." }] },
-  sales: { eyebrow: "SALES", title: "Bring us the hard question.", intro: "Tell us where complexity is slowing the work. We’ll make the first conversation useful.", variant: "orb" as const, links: [{ label: "Book a working session", body: "Walk through one decision your team needs to make better." }, { label: "Explore your use case", body: "See how Cortex fits your operating context." }, { label: "Talk to an operator", body: "Meet the team behind the system." }] },
-  company: { eyebrow: "COMPANY", title: "Built for the moments that matter.", intro: "Cortex helps the teams behind critical systems see clearly and move with confidence.", variant: "orb" as const, links: [{ label: "Insights", body: "Ideas for the next system." }, { label: "Investor center", body: "The long view on intelligent operations." }, { label: "Press center", body: "Company facts, media assets, and selected coverage." }] },
+type PageLink = { label: string; body: string; href?: string };
+
+const pageContent: Record<
+  string,
+  { eyebrow: string; title: string; intro: string; path: string; links: PageLink[] }
+> = {
+  platform: {
+    eyebrow: "PLATFORM",
+    title: "The intelligence layer beneath the work.",
+    intro: "Connect the systems you already trust. Give every team the context to move.",
+    path: "/platform",
+    links: [
+      { label: "Architecture overview", body: "How Cortex connects signal, context, and action." },
+      { label: "Trust & governance", body: "Permissions, controls, and an auditable operating model.", href: "/security" },
+      { label: "Integration patterns", body: "Bring Cortex into the systems your teams already use.", href: "/docs" },
+    ],
+  },
+  solutions: {
+    eyebrow: "SOLUTIONS",
+    title: "Operating patterns for consequential work.",
+    intro: "Start from the problem you own. Cortex meets you with a pattern, not a blank canvas.",
+    path: "/solutions",
+    links: [
+      { label: "Decision readiness", body: "See the conditions around each call before you make it.", href: "/products/nexus" },
+      { label: "Shared operating picture", body: "One context across functions, sites, and shifts.", href: "/products/workflo" },
+      { label: "Repeatable excellence", body: "Codify what your best teams know into governed workflows.", href: "/products/astra" },
+    ],
+  },
+  industries: {
+    eyebrow: "INDUSTRIES",
+    title: "Built for systems that can't blink.",
+    intro: "Healthcare, financial, and industrial teams decide with Cortex where delay is expensive.",
+    path: "/industries",
+    links: [
+      { label: "Healthcare operations", body: "A shared language for complexity across sites.", href: "/case-study/northstar-health" },
+      { label: "Risk & compliance", body: "A living risk picture that review and product both trust.", href: "/case-study/vela-financial" },
+      { label: "Industrial systems", body: "Confidence while the response window is still open.", href: "/case-study/aster-works" },
+    ],
+  },
+  security: {
+    eyebrow: "SECURITY",
+    title: "Enterprise-grade by design.",
+    intro: "Security, permissions, and an auditable operating model — not an afterthought.",
+    path: "/security",
+    links: [
+      { label: "Trust & governance", body: "Role-aware permissions and auditable decision trails.", href: "/docs" },
+      { label: "Data handling", body: "How Cortex treats your information, in plain language.", href: "/legal/privacy" },
+      { label: "Operating controls", body: "Rate limits, approvals, and owner routing on every action.", href: "/platform" },
+    ],
+  },
+  docs: {
+    eyebrow: "DOCUMENTATION",
+    title: "A clear path from question to capability.",
+    intro: "Start with the mental model. Go deep when you need to.",
+    path: "/docs",
+    links: [
+      { label: "Platform foundations", body: "Core concepts and the Cortex system map." },
+      { label: "Build with Cortex", body: "APIs, SDKs, and practical implementation patterns." },
+      { label: "Trust & governance", body: "Security, permissions, and operating controls.", href: "/security" },
+    ],
+  },
+  sales: {
+    eyebrow: "SALES",
+    title: "Bring us the hard question.",
+    intro: "Tell us where complexity is slowing the work. We’ll make the first conversation useful.",
+    path: "/sales",
+    links: [
+      { label: "Book a working session", body: "Walk through one decision your team needs to make better.", href: "/demo" },
+      { label: "Explore your use case", body: "See how Cortex fits your operating context.", href: "/solutions" },
+      { label: "Talk to an operator", body: "Meet the team behind the system.", href: "/contact" },
+    ],
+  },
+  company: {
+    eyebrow: "COMPANY",
+    title: "Built for the moments that matter.",
+    intro: "Cortex helps the teams behind critical systems see clearly and move with confidence.",
+    path: "/company",
+    links: [
+      { label: "Insights", body: "Ideas for the next system.", href: "/resources/insights" },
+      { label: "Case studies", body: "Selected stories from healthcare, finance, and industry.", href: "/resources/case-studies" },
+      { label: "Contact", body: "Start a conversation with the team.", href: "/contact" },
+    ],
+  },
 };
+
+export type SectionType = keyof typeof pageContent | "product";
 
 type WaitlistForm = { name: string; email: string; company: string };
 type WaitlistState = "idle" | "submitting" | "success" | "error";
 
-export default function SectionPage({ type }: { type: keyof typeof pageContent | "product" }) {
+export default function SectionPage({ type }: { type: SectionType }) {
   useEffect(() => {
     const items = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { items.forEach((item) => item.classList.add("is-visible")); return; }
@@ -23,7 +107,57 @@ export default function SectionPage({ type }: { type: keyof typeof pageContent |
   }, []);
   if (type === "product") return <ProductOverview />;
   const content = pageContent[type];
-  return <div className="detail-site section-page"><SectionPageHeader /><main><section className="section-page-hero" data-reveal><div className="section-page-copy"><Link href="/" className="back-link"><ArrowLeft size={15} /> Cortex home</Link><p className="eyebrow">{content.eyebrow}</p><h1>{content.title}</h1><p className="section-page-intro">{content.intro}</p>{type === "sales" ? <a href="/?contact=1#contact" className="button-primary">Start a conversation <ArrowRight size={16} /></a> : <a href="#explore" className="button-dark">Explore {type} <ArrowRight size={16} /></a>}</div><div className="section-page-visual plain-surface"><span className="visual-readout">CORTEX / {type.toUpperCase()}<small>clarity, context, action</small></span></div></section><section id="explore" className="section-page-list" data-reveal><div className="detail-rail">EXPLORE</div><div className="section-page-list-copy"><p className="eyebrow">{type === "docs" ? "START HERE" : "THE SYSTEM"}</p><h2>{type === "sales" ? "A useful first step." : "One system. Clearer moves."}</h2><div className="page-link-list">{content.links.map((item) => <a href={type === "sales" ? "/?contact=1#contact" : `/#${type}`} key={item.label}><div><strong>{item.label}</strong><small>{item.body}</small></div><ArrowRight size={16} /></a>)}</div></div></section></main><SectionPageFooter /></div>;
+  if (!content) return null;
+  const ctaHref = type === "sales" ? "/contact" : type === "security" ? "/docs" : "#explore";
+  return (
+    <div className="detail-site section-page">
+      <SEO path={content.path} />
+      <SiteHeader />
+      <main>
+        <section className="section-page-hero" data-reveal>
+          <div className="section-page-copy">
+            <Link href="/" className="back-link"><ArrowLeft size={15} /> Cortex home</Link>
+            <p className="eyebrow">{content.eyebrow}</p>
+            <h1>{content.title}</h1>
+            <p className="section-page-intro">{content.intro}</p>
+            {type === "sales" ? (
+              <Link href="/contact" className="button-primary">Start a conversation <ArrowRight size={16} /></Link>
+            ) : (
+              <a href={ctaHref} className="button-dark">Explore {type} <ArrowRight size={16} /></a>
+            )}
+          </div>
+          <div className="section-page-visual plain-surface">
+            <span className="visual-readout">CORTEX / {type.toUpperCase()}<small>clarity, context, action</small></span>
+          </div>
+        </section>
+        <section id="explore" className="section-page-list" data-reveal>
+          <div className="detail-rail">EXPLORE</div>
+          <div className="section-page-list-copy">
+            <p className="eyebrow">{type === "docs" ? "START HERE" : "THE SYSTEM"}</p>
+            <h2>{type === "sales" ? "A useful first step." : "One system. Clearer moves."}</h2>
+            <div className="page-link-list">
+              {content.links.map((item) => {
+                const href = item.href ?? `/#${type}`;
+                const internal = href.startsWith("/");
+                return internal ? (
+                  <Link href={href} key={item.label}>
+                    <div><strong>{item.label}</strong><small>{item.body}</small></div>
+                    <ArrowRight size={16} />
+                  </Link>
+                ) : (
+                  <a href={href} key={item.label}>
+                    <div><strong>{item.label}</strong><small>{item.body}</small></div>
+                    <ArrowRight size={16} />
+                  </a>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      </main>
+      <SiteFooter />
+    </div>
+  );
 }
 
 function ProductOverview() {
@@ -72,8 +206,53 @@ function ProductOverview() {
     }
   };
 
-  return <div className="detail-site section-page"><SectionPageHeader /><main><section className="section-page-hero" data-reveal><div className="section-page-copy"><Link href="/" className="back-link"><ArrowLeft size={15} /> Cortex home</Link><p className="eyebrow">PRODUCT</p><h1>Meet the products<br /><em>behind the work.</em></h1><p className="section-page-intro">Workflo, Nexus, and ASTRA. Three products, one intelligence layer.</p><Link href="/sales" className="button-primary">Talk to Cortex <ArrowRight size={16} /></Link></div><div className="section-page-visual product-overview-visual plain-surface"><span className="visual-readout">CORTEX / PRODUCT SYSTEM<small>workflo / nexus / astra</small></span></div></section><section className="section-page-list" data-reveal><div className="detail-rail">PRODUCTS</div><div className="section-page-list-copy"><p className="eyebrow">THE PRODUCT SYSTEM</p><h2>Choose the product<br /><span>you need next.</span></h2><div className="product-overview-links">{products.map((product) => product.slug === "workflo" ? <button type="button" className="product-overview-card" onClick={openWaitlist} key={product.slug}><span className={`product-status ${product.status === "Early access" ? "is-early-access" : "is-coming-soon"}`}>{product.status}</span><strong>{product.name}</strong><small>{product.intro}</small><span className="product-card-action">Join the waitlist <ArrowRight size={18} /></span></button> : <Link className="product-overview-card" href={`/product/${product.slug}`} key={product.slug}><span className={`product-status ${product.status === "Early access" ? "is-early-access" : "is-coming-soon"}`}>{product.status}</span><strong>{product.name}</strong><small>{product.intro}</small><span className="product-card-action">Explore {product.name} <ArrowRight size={18} /></span></Link>)}</div></div></section></main>{waitlistOpen && <div className="overlay-shell waitlist-modal-shell" role="dialog" aria-modal="true" aria-label="Join the Workflo early access waitlist" onMouseDown={(event) => { if (event.target === event.currentTarget) closeWaitlist(); }}><div className="waitlist-modal"><button className="modal-close" type="button" onClick={closeWaitlist} aria-label="Close Workflo waitlist"><X size={20} /></button>{waitlistState === "success" ? <div className="contact-success"><div className="success-icon"><Check size={24} /></div><p className="eyebrow">REQUEST RECEIVED</p><h2>You’re on the<br /><em>Workflo list.</em></h2><p>Thanks for your interest. We’ll follow up with early-access details soon.</p><button type="button" className="button-dark" onClick={closeWaitlist}>Back to products <ArrowRight size={16} /></button></div> : <form onSubmit={submitWaitlist}><div className="contact-modal-heading"><p className="eyebrow">WORKFLO / EARLY ACCESS</p><h2>Get early access<br /><span>to Workflo.</span></h2><p>Tell us where Workflo could help your team see the system more clearly.</p></div><div className="contact-fields waitlist-fields"><label>Full name<input required autoComplete="name" value={waitlistForm.name} onChange={(event) => updateField("name", event.target.value)} placeholder="Your name" /></label><label>Work email<input required type="email" autoComplete="email" value={waitlistForm.email} onChange={(event) => updateField("email", event.target.value)} placeholder="you@company.com" /></label><label className="waitlist-company-field">Company<input autoComplete="organization" value={waitlistForm.company} onChange={(event) => updateField("company", event.target.value)} placeholder="Company name" /></label></div>{waitlistState === "error" && <p className="waitlist-form-error" role="alert">{waitlistError}</p>}<div className="contact-modal-footer"><span><Mail size={15} /> We’ll review your request shortly.</span><button className="button-primary" type="submit" disabled={waitlistState === "submitting"}>{waitlistState === "submitting" ? <><LoaderCircle size={16} className="animate-spin" /> Sending...</> : <>Request early access <ArrowRight size={16} /></>}</button></div></form>}</div></div>}<SectionPageFooter /></div>;
+  return (
+    <div className="detail-site section-page">
+      <SEO path="/products" />
+      <SiteHeader />
+      <main>
+        <section className="section-page-hero" data-reveal>
+          <div className="section-page-copy">
+            <Link href="/" className="back-link"><ArrowLeft size={15} /> Cortex home</Link>
+            <p className="eyebrow">PRODUCT</p>
+            <h1>Meet the products<br /><em>behind the work.</em></h1>
+            <p className="section-page-intro">Workflo, Nexus, and ASTRA. Three products, one intelligence layer.</p>
+            <Link href="/contact" className="button-primary">Talk to Cortex <ArrowRight size={16} /></Link>
+          </div>
+          <div className="section-page-visual product-overview-visual plain-surface">
+            <span className="visual-readout">CORTEX / PRODUCT SYSTEM<small>workflo / nexus / astra</small></span>
+          </div>
+        </section>
+        <section className="section-page-list" data-reveal>
+          <div className="detail-rail">PRODUCTS</div>
+          <div className="section-page-list-copy">
+            <p className="eyebrow">THE PRODUCT SYSTEM</p>
+            <h2>Choose the product<br /><span>you need next.</span></h2>
+            <div className="product-overview-links">
+              {products.map((product) => product.slug === "workflo" ? (
+                <button type="button" className="product-overview-card" onClick={openWaitlist} key={product.slug}>
+                  <span className={`product-status ${product.status === "Early access" ? "is-early-access" : "is-coming-soon"}`}>{product.status}</span>
+                  <strong>{product.name}</strong>
+                  <small>{product.intro}</small>
+                  <span className="product-card-action">Join the waitlist <ArrowRight size={18} /></span>
+                </button>
+              ) : (
+                <Link className="product-overview-card" href={`/products/${product.slug}`} key={product.slug}>
+                  <span className={`product-status ${product.status === "Early access" ? "is-early-access" : "is-coming-soon"}`}>{product.status}</span>
+                  <strong>{product.name}</strong>
+                  <small>{product.intro}</small>
+                  <span className="product-card-action">Explore {product.name} <ArrowRight size={18} /></span>
+                </Link>
+              ))}
+            </div>
+            <p className="resources-note">
+              Already know your use case? <Link href="/demo">Book a working session</Link> instead.
+            </p>
+          </div>
+        </section>
+      </main>
+      {waitlistOpen && <div className="overlay-shell waitlist-modal-shell" role="dialog" aria-modal="true" aria-label="Join the Workflo early access waitlist" onMouseDown={(event) => { if (event.target === event.currentTarget) closeWaitlist(); }}><div className="waitlist-modal"><button className="modal-close" type="button" onClick={closeWaitlist} aria-label="Close Workflo waitlist"><X size={20} /></button>{waitlistState === "success" ? <div className="contact-success"><div className="success-icon"><Check size={24} /></div><p className="eyebrow">REQUEST RECEIVED</p><h2>You’re on the<br /><em>Workflo list.</em></h2><p>Thanks for your interest. We’ll follow up with early-access details soon.</p><button type="button" className="button-dark" onClick={closeWaitlist}>Back to products <ArrowRight size={16} /></button></div> : <form onSubmit={submitWaitlist}><div className="contact-modal-heading"><p className="eyebrow">WORKFLO / EARLY ACCESS</p><h2>Get early access<br /><span>to Workflo.</span></h2><p>Tell us where Workflo could help your team see the system more clearly.</p></div><div className="contact-fields waitlist-fields"><label>Full name<input required autoComplete="name" value={waitlistForm.name} onChange={(event) => updateField("name", event.target.value)} placeholder="Your name" /></label><label>Work email<input required type="email" autoComplete="email" value={waitlistForm.email} onChange={(event) => updateField("email", event.target.value)} placeholder="you@company.com" /></label><label className="waitlist-company-field">Company<input autoComplete="organization" value={waitlistForm.company} onChange={(event) => updateField("company", event.target.value)} placeholder="Company name" /></label></div>{waitlistState === "error" && <p className="waitlist-form-error" role="alert">{waitlistError}</p>}<div className="contact-modal-footer"><span><Mail size={15} /> We’ll review your request shortly.</span><button className="button-primary" type="submit" disabled={waitlistState === "submitting"}>{waitlistState === "submitting" ? <><LoaderCircle size={16} className="animate-spin" /> Sending...</> : <>Request early access <ArrowRight size={16} /></>}</button></div></form>}</div></div>}
+      <SiteFooter />
+    </div>
+  );
 }
-
-function SectionPageHeader() { return <header className="detail-header"><Link href="/" className="brand"><span className="brand-mark-shell"><img src="/assets/cortex-mark.svg" alt="" className="brand-mark" /></span><span className="brand-wordmark">CORTEX</span></Link><nav className="detail-nav"><Link href="/product">Product</Link><Link href="/platform">Platform</Link><Link href="/docs">Docs</Link><Link href="/company">Company</Link></nav><a href="/?contact=1#contact" className="detail-header-cta">Talk to Cortex <ArrowRight size={15} /></a></header>; }
-function SectionPageFooter() { return <footer className="detail-footer"><div><span className="brand-wordmark">CORTEX</span><p>Clarity for critical systems.</p></div><Link href="/">Return to the home page <ArrowRight size={15} /></Link><span>© Cortex Systems, Inc.</span></footer>; }
