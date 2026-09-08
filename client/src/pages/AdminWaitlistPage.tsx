@@ -244,7 +244,7 @@ export default function AdminWaitlistPage() {
         )}
       </main>
       <footer className="admin-footer">
-        <Link href="/product">
+        <Link href="/products">
           <ArrowLeft size={15} /> Back to products
         </Link>
         <span>Protected Workflo workspace</span>

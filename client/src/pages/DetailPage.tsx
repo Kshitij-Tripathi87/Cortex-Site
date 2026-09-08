@@ -1,20 +1,23 @@
-/* Silverline Systems reminder: use the detail page as an operating brief—indexed sections, clear specifications, silver planes, and cobalt reserved for decisive actions. */
-import { useEffect, useState } from "react";
+/* Cinematic system: product briefs (001–008) and case-study briefs.
+ * Numbered, structural, honest — every figure labeled or omitted. */
+import { useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { ArrowLeft, ArrowRight, Check, CircleArrowOutUpRight } from "lucide-react";
-import { caseStudies, products } from "@/lib/cortexContent";
-
-const mark = "/assets/cortex-mark.svg";
+import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import SEO from "@/components/SEO";
+import { SiteFooter, SiteHeader } from "@/components/SiteChrome";
+import Reveal from "@/components/motion/Reveal";
+import SectionNumber from "@/components/editorial/SectionNumber";
+import Statement, { Dim } from "@/components/editorial/Statement";
+import TechnicalLabel from "@/components/editorial/TechnicalLabel";
+import StatBlock from "@/components/product/StatBlock";
+import PipelineStrip from "@/components/product/PipelineStrip";
+import ArchitectureDiagram from "@/components/product/ArchitectureDiagram";
+import { breadcrumbJsonLd, productJsonLd } from "@/lib/seo/structuredData";
+import { FUNNEL_EVENTS, track } from "@/lib/analytics/events";
+import { caseStudies, products, type CaseStudyDetail, type ProductDetail } from "@/lib/cortexContent";
 
 export default function DetailPage({ kind, slug }: { kind: "product" | "case-study"; slug: string }) {
   const [, navigate] = useLocation();
-  useEffect(() => {
-    const items = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal]"));
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { items.forEach((item) => item.classList.add("is-visible")); return; }
-    const observer = new IntersectionObserver((entries) => entries.forEach((entry) => { if (entry.isIntersecting) { entry.target.classList.add("is-visible"); observer.unobserve(entry.target); } }), { threshold: 0.12, rootMargin: "0px 0px -8% 0px" });
-    items.forEach((item) => observer.observe(item));
-    return () => observer.disconnect();
-  }, []);
   const product = kind === "product" ? products.find((item) => item.slug === slug) : undefined;
   const story = kind === "case-study" ? caseStudies.find((item) => item.slug === slug) : undefined;
 
@@ -22,42 +25,432 @@ export default function DetailPage({ kind, slug }: { kind: "product" | "case-stu
     if (!product && !story) navigate("/404");
   }, [navigate, product, story]);
 
+  useEffect(() => {
+    if (product) track(FUNNEL_EVENTS.productViewed, { product: product.slug });
+  }, [product]);
+
   if (!product && !story) return null;
-
-  if (product) {
-    return <ProductDetail product={product} />;
-  }
-
-  return <CaseStudyDetail story={story!} />;
+  if (product) return <ProductDetailPage product={product} />;
+  return <CaseStudyDetailPage story={story!} />;
 }
 
-function DetailHeader() {
+function ProductTag({ tag }: { tag: string }) {
+  const tone = tag === "SIMULATION" ? "is-sim" : "is-live";
+  return <span className={`cx-tag ${tone}`}>{tag}</span>;
+}
+
+/* ------------------------------------------------------------------ */
+/* Product brief                                                       */
+/* ------------------------------------------------------------------ */
+
+function ProductDetailPage({ product }: { product: ProductDetail }) {
+  const path = `/products/${product.slug}`;
+  const others = products.filter((item) => item.slug !== product.slug);
+
   return (
-    <header className="detail-header">
-      <Link href="/" className="brand" aria-label="Back to Cortex home"><span className="brand-mark-shell"><img src={mark} alt="" className="brand-mark" /></span><span className="brand-wordmark">CORTEX</span></Link>
-      <nav className="detail-nav"><a href="/#product">Product</a><a href="/#platform">Platform</a><a href="/#docs">Docs</a><a href="/#insights">Insights</a></nav>
-      <Link href="/#contact" className="detail-header-cta">Talk to Cortex <ArrowRight size={15} /></Link>
-    </header>
+    <div className="cx-page">
+      <SEO
+        path={path}
+        jsonLd={[
+          productJsonLd({ name: product.name, path, description: product.description }),
+          breadcrumbJsonLd([
+            { name: "Home", path: "/" },
+            { name: "Products", path: "/products" },
+            { name: product.name, path },
+          ]),
+        ]}
+      />
+      <SiteHeader />
+      <main>
+        {/* 001 — FILM */}
+        <header className="cx-product-hero">
+          <div className="cx-product-hero-bg" style={{ backgroundImage: `url(${product.image})` }} aria-hidden="true" />
+          <div className="cx-wrap">
+            <Link href="/products" className="cx-text-link">
+              <ArrowLeft size={15} /> Product overview
+            </Link>
+            <p className="cx-kicker" style={{ marginTop: "2.4rem" }}>
+              001 / {product.category}
+            </p>
+            <h1>{product.name}</h1>
+            <p className="cx-product-state" style={{ maxWidth: "24ch" }}>
+              {product.statement} <span className="cx-dim">{product.statementDim}</span>
+            </p>
+            <div className="cx-solution-tags" style={{ margin: "1.6rem 0 2.2rem" }}>
+              <ProductTag tag={product.tag} />
+              <span className="cx-tag is-info">{product.status}</span>
+            </div>
+            <div className="cx-hero-ctas" style={{ marginTop: 0 }}>
+              <Link
+                href="/demo"
+                className="cx-btn cx-btn-primary"
+                onClick={() => track(FUNNEL_EVENTS.demoStarted, { product: product.slug })}
+              >
+                See it run <ArrowRight size={15} />
+              </Link>
+              <Link href="/contact" className="cx-btn cx-btn-ghost">
+                Talk to Cortex
+              </Link>
+            </div>
+          </div>
+        </header>
+
+        {/* 002 — STATEMENT */}
+        <section className="cx-section cx-section-tight" aria-label={`${product.name} declaration`}>
+          <div className="cx-wrap">
+            <Reveal>
+              <SectionNumber index="002" label="Declaration" />
+              <Statement wide>
+                {product.declaration} <Dim>{product.declarationDim}</Dim>
+              </Statement>
+            </Reveal>
+          </div>
+        </section>
+
+        {/* 003 — WHERE IT ACTS */}
+        <section className="cx-section cx-section-tight" aria-label="Where it acts">
+          <div className="cx-wrap">
+            <Reveal>
+              <SectionNumber index="003" label="Where it acts" />
+              <Statement>
+                {product.whereItActs.title.split(".")[0]}.{" "}
+                <Dim>{product.whereItActs.title.split(".").slice(1).join(".").trim() || product.intro}</Dim>
+              </Statement>
+            </Reveal>
+            <div className="cx-pagenum-body" style={{ marginTop: "2.5rem" }}>
+              <Reveal>
+                <p className="cx-lede">{product.whereItActs.body}</p>
+              </Reveal>
+              <Reveal delay={0.08}>
+                <ul className="cx-capability-list">
+                  {product.whereItActs.bullets.map((bullet) => (
+                    <li key={bullet}>
+                      <Check size={16} aria-hidden="true" /> {bullet}
+                    </li>
+                  ))}
+                </ul>
+              </Reveal>
+            </div>
+          </div>
+        </section>
+
+        {/* 004 — MOVEMENT */}
+        <section className="cx-section cx-section-tight" aria-label="Movement">
+          <div className="cx-wrap">
+            <div className="cx-split">
+              <Reveal className="cx-split-sticky">
+                <SectionNumber index="004" label="Movement" />
+                <Statement>
+                  Four moves. <Dim>No paperwork.</Dim>
+                </Statement>
+                <p className="cx-lede" style={{ marginTop: "1.6rem" }}>
+                  The working rhythm of {product.name} — select a stage to inspect it.
+                </p>
+              </Reveal>
+              <Reveal delay={0.08}>
+                <PipelineStrip label={`${product.name} movement`} steps={product.movement} />
+              </Reveal>
+            </div>
+          </div>
+        </section>
+
+        {/* 005 — MECHANISM */}
+        <section className="cx-section cx-section-tight" aria-label="Mechanism">
+          <div className="cx-wrap">
+            <Reveal>
+              <SectionNumber index="005" label="Mechanism" />
+              <Statement>
+                {product.mechanism.title.split(".")[0]}.{" "}
+                <Dim>{product.mechanism.title.split(".").slice(1).join(".").trim() || "Illustrated, not measured."}</Dim>
+              </Statement>
+            </Reveal>
+            <div className="cx-pagenum-body" style={{ marginTop: "2.5rem" }}>
+              <Reveal>
+                <div className="cx-diagram">
+                  <ArchitectureDiagram variant={product.slug} title={`${product.name} mechanism diagram`} />
+                </div>
+              </Reveal>
+              <Reveal delay={0.08}>
+                <p className="cx-lede">{product.mechanism.body}</p>
+                <ul className="cx-capability-list" style={{ marginTop: "1.6rem" }}>
+                  {product.mechanism.bullets.map((bullet) => (
+                    <li key={bullet}>
+                      <Check size={16} aria-hidden="true" /> {bullet}
+                    </li>
+                  ))}
+                </ul>
+                {product.mechanism.note && (
+                  <p className="cx-lede" style={{ marginTop: "1.6rem" }}>
+                    <span className="cx-tag is-sim">Sandboxed</span>{" "}
+                    <span style={{ display: "block", marginTop: "0.9rem" }}>{product.mechanism.note}</span>
+                  </p>
+                )}
+              </Reveal>
+            </div>
+          </div>
+        </section>
+
+        {/* 006 — STACK */}
+        <section className="cx-section cx-section-tight" aria-label="The stack">
+          <div className="cx-wrap">
+            <Reveal>
+              <SectionNumber index="006" label="The stack" />
+              <Statement>
+                Three parts. <Dim>Each verifiable alone.</Dim>
+              </Statement>
+            </Reveal>
+            <Reveal delay={0.06}>
+              <div className="cx-workload-grid">
+                {product.stack.map((spec) => (
+                  <div key={spec.title} className="cx-workload">
+                    <TechnicalLabel>{spec.meta}</TechnicalLabel>
+                    <h3 style={{ marginTop: "0.8rem" }}>{spec.title}</h3>
+                    <p>{spec.body}</p>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+          </div>
+        </section>
+
+        {/* 007 — PROOF */}
+        <section className="cx-section cx-section-tight" aria-label="Proof">
+          <div className="cx-wrap">
+            <Reveal>
+              <SectionNumber index="007" label="Proof" />
+              <Statement>
+                Structure, counted. <Dim>Outcomes, never invented.</Dim>
+              </Statement>
+            </Reveal>
+            <Reveal delay={0.06}>
+              <div style={{ marginTop: "2.5rem" }}>
+                <StatBlock label={`${product.name} structure`} stats={product.proof} />
+                <p style={{ marginTop: "1.4rem" }}>
+                  <TechnicalLabel>{product.proofNote}</TechnicalLabel>
+                </p>
+              </div>
+            </Reveal>
+          </div>
+        </section>
+
+        {/* 008 — HANDOFF */}
+        <section className="cx-section" aria-label="Continue">
+          <div className="cx-wrap">
+            <Reveal>
+              <div className="cx-closing">
+                <SectionNumber index="008" label="Handoff" />
+                <h2>One layer. Three systems.</h2>
+                <p className="cx-closing-sub">{product.handoff}</p>
+                <div className="cx-closing-ctas">
+                  <Link
+                    href="/demo"
+                    className="cx-btn cx-btn-primary"
+                    onClick={() => track(FUNNEL_EVENTS.demoStarted, { product: product.slug })}
+                  >
+                    Book a working session <ArrowRight size={15} />
+                  </Link>
+                  <Link href="/contact" className="cx-btn cx-btn-ghost">
+                    Talk to Cortex
+                  </Link>
+                </div>
+                <nav className="cx-closing-routes" aria-label="Other systems">
+                  {others.map((item) => (
+                    <Link key={item.slug} href={`/products/${item.slug}`}>
+                      {item.name} — {item.category}
+                    </Link>
+                  ))}
+                  <Link href="/platform">The platform</Link>
+                </nav>
+              </div>
+            </Reveal>
+          </div>
+        </section>
+      </main>
+      <SiteFooter />
+    </div>
   );
 }
 
-function DetailFooter() {
-  return <footer className="detail-footer"><div><span className="brand-wordmark">CORTEX</span><p>Clarity for critical systems.</p></div><Link href="/">Return to the home page <ArrowRight size={15} /></Link><span>© Cortex Systems, Inc.</span></footer>;
-}
+/* ------------------------------------------------------------------ */
+/* Case-study brief                                                    */
+/* ------------------------------------------------------------------ */
 
-function ProductDetail({ product }: { product: (typeof products)[number] }) {
-  return <div className="detail-site"><DetailHeader /><main><section className="detail-hero product-detail-hero" data-reveal><div className="detail-hero-index">PRODUCT</div><div className="detail-hero-copy"><Link href="/#product" className="back-link"><ArrowLeft size={15} /> Product overview</Link><h1>{product.title}</h1><p className="detail-intro">{product.intro}</p><div className="detail-hero-actions"><a className="button-primary" href="/#contact">Talk through your use case <ArrowRight size={16} /></a><a className="text-link" href="#specs">View specifications <ArrowRight size={16} /></a></div></div><div className="detail-hero-signal plain-surface"><span className="signal-label">CORTEX / {product.name.toUpperCase()}</span></div></section><section id="specs" className="detail-spec-band" data-reveal><div className="detail-rail">SPECIFICATIONS</div><div className="detail-spec-copy"><div><p className="eyebrow">THE {product.name.toUpperCase()} SYSTEM</p><h2>{product.description}</h2></div><div className="spec-grid">{product.capabilities.map((item) => <div className="spec-item" key={item}><strong>{item}</strong><Check size={15} /></div>)}</div></div></section>{product.sections.map((section, index) => <section data-reveal className={`detail-content-section ${index % 2 ? "section-alt" : ""}`} key={section.label}><div className="detail-rail">{section.label.split(" /")[1] || section.label}</div><div className="detail-content-grid"><div><p className="eyebrow">{section.label}</p><h2>{section.title}</h2></div><div><p className="detail-body-copy">{section.body}</p><ul className="detail-points">{section.points.map((point) => <li key={point}><Check size={15} />{point}</li>)}</ul></div></div></section>)}<section className="detail-cta" data-reveal><p className="eyebrow light-eyebrow">KEEP GOING</p><h2>See how {product.name} fits<br /><em>your system.</em></h2><a href="/#contact" className="button-cobalt">Talk to Cortex <ArrowRight size={16} /></a></section></main><DetailFooter /></div>;
-}
+function CaseStudyDetailPage({ story }: { story: CaseStudyDetail }) {
+  const path = `/case-study/${story.slug}`;
+  const others = caseStudies.filter((item) => item.slug !== story.slug);
 
-function EditorialImage({ src, alt, label, className }: { src: string; alt: string; label: string; className: string }) {
-  const [loaded, setLoaded] = useState(false);
-  return <div className={`${className} image-loading-surface ${loaded ? "is-loaded" : ""}`}>
-    <div className="image-skeleton" aria-hidden="true" />
-    <img src={src} alt={alt} onLoad={() => setLoaded(true)} />
-    <span>{label}</span>
-  </div>;
-}
+  return (
+    <div className="cx-page">
+      <SEO
+        path={path}
+        jsonLd={breadcrumbJsonLd([
+          { name: "Home", path: "/" },
+          { name: "Case studies", path: "/resources/case-studies" },
+          { name: story.company, path },
+        ])}
+      />
+      <SiteHeader />
+      <main>
+        {/* INDEX */}
+        <header className="cx-product-hero">
+          <div className="cx-wrap">
+            <Link href="/resources/case-studies" className="cx-text-link">
+              <ArrowLeft size={15} /> Selected stories
+            </Link>
+            <p className="cx-kicker" style={{ marginTop: "2.4rem" }}>
+              Case study / {story.company}
+            </p>
+            <h1>{story.title}</h1>
+            <p className="cx-product-cat">{story.sector}</p>
+            <blockquote className="cx-story-quote" style={{ marginTop: "1.6rem", maxWidth: "26ch" }}>
+              “{story.quote}”
+            </blockquote>
+            <p style={{ marginTop: "1.2rem" }}>
+              <TechnicalLabel>{story.source}</TechnicalLabel>
+            </p>
+            <div className="cx-solution-tags" style={{ margin: "1.8rem 0 0" }}>
+              <span className="cx-tag is-info">{story.systemUsed}</span>
+              <span className="cx-tag">Illustrated brief</span>
+            </div>
+          </div>
+        </header>
 
-function CaseStudyDetail({ story }: { story: (typeof caseStudies)[number] }) {
-  return <div className="detail-site"><DetailHeader /><main><section className="detail-hero story-detail-hero" data-reveal><EditorialImage className="story-detail-image" src={story.image} alt={`${story.company} editorial case study`} label={story.sector} /><div className="story-detail-copy"><Link href="/#stories" className="back-link"><ArrowLeft size={15} /> Selected stories</Link><p className="eyebrow">CASE STUDY / {story.company}</p><h1>{story.title}</h1><blockquote>“{story.quote}”</blockquote></div></section><section className="story-overview" data-reveal><div className="detail-rail">OVERVIEW</div><div className="story-overview-grid"><div><p className="eyebrow">THE CONTEXT</p><h2>{story.company} needed a clearer view of the system around each decision.</h2></div><div><p className="detail-body-copy">{story.overview}</p><p className="detail-body-copy"><strong>The challenge:</strong> {story.challenge}</p></div></div></section><section className="story-approach" data-reveal><div className="detail-rail">APPROACH</div><div className="story-approach-content"><div><p className="eyebrow">HOW CORTEX HELPED</p><h2>Make the next right move easier to see.</h2></div><div className="approach-list">{story.approach.map((item, index) => <div className="approach-item" key={item}><p>{item}</p><CircleArrowOutUpRight size={17} /></div>)}</div></div></section><section className="story-outcomes" data-reveal><div className="detail-rail">OUTCOMES</div><div><p className="eyebrow light-eyebrow">THE SIGNAL</p><h2>Progress you can<br /><em>feel in the system.</em></h2><div className="outcome-grid">{story.outcomes.map((item) => <div key={item}><strong>{item}</strong></div>)}</div></div></section><section className="detail-cta" data-reveal><p className="eyebrow light-eyebrow">YOUR SYSTEM IS NEXT</p><h2>Bring us the<br /><em>hard question.</em></h2><a href="/#contact" className="button-cobalt">Talk to Cortex <ArrowRight size={16} /></a></section></main><DetailFooter /></div>;
+        <section className="cx-section cx-section-tight" aria-label={`${story.company} deployment`}>
+          <div className="cx-wrap">
+            <Reveal>
+              <div className="cx-story-hero-img" style={{ backgroundImage: `url(${story.image})` }} role="img" aria-label={`${story.company} deployment artwork`} />
+            </Reveal>
+          </div>
+        </section>
+
+        {/* CONSTRAINT */}
+        <section className="cx-section cx-section-tight" aria-label="The constraint">
+          <div className="cx-wrap">
+            <Reveal>
+              <SectionNumber index="Constraint" label={story.company} />
+              <Statement>{story.constraint.title}</Statement>
+            </Reveal>
+            <div className="cx-pagenum-body" style={{ marginTop: "2.5rem" }}>
+              <Reveal>
+                <p className="cx-lede">{story.constraint.body}</p>
+              </Reveal>
+              <Reveal delay={0.08}>
+                <ul className="cx-capability-list">
+                  {story.constraint.bullets.map((bullet) => (
+                    <li key={bullet}>
+                      <Check size={16} aria-hidden="true" /> {bullet}
+                    </li>
+                  ))}
+                </ul>
+              </Reveal>
+            </div>
+          </div>
+        </section>
+
+        {/* COUNT */}
+        <section className="cx-section cx-section-tight" aria-label="Deployment structure">
+          <div className="cx-wrap">
+            <Reveal>
+              <SectionNumber index="Count" label="Deployment structure" />
+              <Statement>
+                Counted, not claimed. <Dim>Structure from the brief.</Dim>
+              </Statement>
+            </Reveal>
+            <Reveal delay={0.06}>
+              <div style={{ marginTop: "2.5rem" }}>
+                <StatBlock label={`${story.company} deployment structure`} stats={story.figures} />
+                <p style={{ marginTop: "1.4rem" }}>
+                  <TechnicalLabel>{story.figuresNote}</TechnicalLabel>
+                </p>
+              </div>
+            </Reveal>
+          </div>
+        </section>
+
+        {/* METHOD */}
+        <section className="cx-section cx-section-tight" aria-label="Method">
+          <div className="cx-wrap">
+            <Reveal>
+              <SectionNumber index="Method" label="How Cortex helped" />
+              <Statement>
+                Make the next right move <Dim>easier to see.</Dim>
+              </Statement>
+            </Reveal>
+            <Reveal delay={0.06}>
+              <div className="cx-pagenum-body" style={{ marginTop: "2.5rem" }}>
+                <p className="cx-lede">
+                  {story.systemUsed} on one layer — signals unified, decisions routed, records sealed.
+                </p>
+                <ul className="cx-capability-list">
+                  {story.approach.map((item) => (
+                    <li key={item}>
+                      <Check size={16} aria-hidden="true" /> {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </Reveal>
+          </div>
+        </section>
+
+        {/* SIGNAL */}
+        <section className="cx-section cx-section-tight" aria-label="Signal">
+          <div className="cx-wrap">
+            <Reveal>
+              <SectionNumber index="Signal" label="What changed" />
+              <Statement>
+                Progress you can <Dim>feel in the system.</Dim>
+              </Statement>
+            </Reveal>
+            <Reveal delay={0.06}>
+              <div className="cx-workload-grid">
+                {story.outcomes.map((outcome, i) => (
+                  <div key={outcome} className="cx-workload">
+                    <TechnicalLabel>Signal / 0{i + 1}</TechnicalLabel>
+                    <h3 style={{ marginTop: "0.8rem" }}>{outcome}</h3>
+                  </div>
+                ))}
+              </div>
+            </Reveal>
+          </div>
+        </section>
+
+        {/* CLOSE */}
+        <section className="cx-section" aria-label="Continue">
+          <div className="cx-wrap">
+            <Reveal>
+              <div className="cx-closing">
+                <h2>Your system is next.</h2>
+                <p className="cx-closing-sub">
+                  Bring us the hard question. We will make the first conversation useful —
+                  one decision, mapped against the layer.
+                </p>
+                <div className="cx-closing-ctas">
+                  <Link
+                    href="/contact"
+                    className="cx-btn cx-btn-primary"
+                    onClick={() => track(FUNNEL_EVENTS.contactStarted, { source: "case-study" })}
+                  >
+                    Talk to Cortex <ArrowRight size={15} />
+                  </Link>
+                  <Link href="/products" className="cx-btn cx-btn-ghost">
+                    Tour the systems
+                  </Link>
+                </div>
+                <nav className="cx-closing-routes" aria-label="More briefs">
+                  {others.map((item) => (
+                    <Link key={item.slug} href={`/case-study/${item.slug}`}>
+                      {item.company}
+                    </Link>
+                  ))}
+                  <Link href="/resources/case-studies">All briefs</Link>
+                </nav>
+              </div>
+            </Reveal>
+          </div>
+        </section>
+      </main>
+      <SiteFooter />
+    </div>
+  );
 }

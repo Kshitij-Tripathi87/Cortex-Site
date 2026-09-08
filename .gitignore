@@ -103,6 +103,9 @@ temp/
 *.sqlite3
 data/waitlist.json
 data/contact-requests.json
+data/demo-requests.json
+data/newsletter.json
+data/analytics.json
 
 # Webdev artifacts (checkpoint zips, migrations, etc.)
 .webdev/
