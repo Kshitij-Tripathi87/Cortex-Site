@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import SEO from "@/components/SEO";
 import { SiteFooter, SiteHeader } from "@/components/SiteChrome";
 import Reveal from "@/components/motion/Reveal";
+import ProductMotion from "@/components/motion/ProductMotion";
 import SectionNumber from "@/components/editorial/SectionNumber";
 import Statement, { Dim } from "@/components/editorial/Statement";
 import TechnicalLabel from "@/components/editorial/TechnicalLabel";
@@ -98,30 +99,30 @@ function ProductDetailPage({ product }: { product: ProductDetail }) {
         {/* 002 — STATEMENT */}
         <section className="cx-section cx-section-tight" aria-label={`${product.name} declaration`}>
           <div className="cx-wrap">
-            <Reveal>
+            <ProductMotion slug={product.slug} index={0}>
               <SectionNumber index="002" label="Declaration" />
               <Statement wide>
                 {product.declaration} <Dim>{product.declarationDim}</Dim>
               </Statement>
-            </Reveal>
+            </ProductMotion>
           </div>
         </section>
 
         {/* 003 — WHERE IT ACTS */}
         <section className="cx-section cx-section-tight" aria-label="Where it acts">
           <div className="cx-wrap">
-            <Reveal>
+            <ProductMotion slug={product.slug} index={1}>
               <SectionNumber index="003" label="Where it acts" />
               <Statement>
                 {product.whereItActs.title.split(".")[0]}.{" "}
                 <Dim>{product.whereItActs.title.split(".").slice(1).join(".").trim() || product.intro}</Dim>
               </Statement>
-            </Reveal>
+            </ProductMotion>
             <div className="cx-pagenum-body" style={{ marginTop: "2.5rem" }}>
-              <Reveal>
+              <ProductMotion slug={product.slug} index={2}>
                 <p className="cx-lede">{product.whereItActs.body}</p>
-              </Reveal>
-              <Reveal delay={0.08}>
+              </ProductMotion>
+              <ProductMotion slug={product.slug} index={3}>
                 <ul className="cx-capability-list">
                   {product.whereItActs.bullets.map((bullet) => (
                     <li key={bullet}>
@@ -129,7 +130,7 @@ function ProductDetailPage({ product }: { product: ProductDetail }) {
                     </li>
                   ))}
                 </ul>
-              </Reveal>
+              </ProductMotion>
             </div>
           </div>
         </section>
@@ -138,7 +139,7 @@ function ProductDetailPage({ product }: { product: ProductDetail }) {
         <section className="cx-section cx-section-tight" aria-label="Movement">
           <div className="cx-wrap">
             <div className="cx-split">
-              <Reveal className="cx-split-sticky">
+              <ProductMotion slug={product.slug} index={4} className="cx-split-sticky">
                 <SectionNumber index="004" label="Movement" />
                 <Statement>
                   Four moves. <Dim>No paperwork.</Dim>
@@ -146,10 +147,10 @@ function ProductDetailPage({ product }: { product: ProductDetail }) {
                 <p className="cx-lede" style={{ marginTop: "1.6rem" }}>
                   The working rhythm of {product.name} — select a stage to inspect it.
                 </p>
-              </Reveal>
-              <Reveal delay={0.08}>
+              </ProductMotion>
+              <ProductMotion slug={product.slug} index={5}>
                 <PipelineStrip label={`${product.name} movement`} steps={product.movement} />
-              </Reveal>
+              </ProductMotion>
             </div>
           </div>
         </section>
@@ -157,20 +158,20 @@ function ProductDetailPage({ product }: { product: ProductDetail }) {
         {/* 005 — MECHANISM */}
         <section className="cx-section cx-section-tight" aria-label="Mechanism">
           <div className="cx-wrap">
-            <Reveal>
+            <ProductMotion slug={product.slug} index={6}>
               <SectionNumber index="005" label="Mechanism" />
               <Statement>
                 {product.mechanism.title.split(".")[0]}.{" "}
                 <Dim>{product.mechanism.title.split(".").slice(1).join(".").trim() || "Illustrated, not measured."}</Dim>
               </Statement>
-            </Reveal>
+            </ProductMotion>
             <div className="cx-pagenum-body" style={{ marginTop: "2.5rem" }}>
-              <Reveal>
+              <ProductMotion slug={product.slug} index={7}>
                 <div className="cx-diagram">
                   <ArchitectureDiagram variant={product.slug} title={`${product.name} mechanism diagram`} />
                 </div>
-              </Reveal>
-              <Reveal delay={0.08}>
+              </ProductMotion>
+              <ProductMotion slug={product.slug} index={8}>
                 <p className="cx-lede">{product.mechanism.body}</p>
                 <ul className="cx-capability-list" style={{ marginTop: "1.6rem" }}>
                   {product.mechanism.bullets.map((bullet) => (
@@ -185,7 +186,7 @@ function ProductDetailPage({ product }: { product: ProductDetail }) {
                     <span style={{ display: "block", marginTop: "0.9rem" }}>{product.mechanism.note}</span>
                   </p>
                 )}
-              </Reveal>
+              </ProductMotion>
             </div>
           </div>
         </section>
@@ -193,13 +194,13 @@ function ProductDetailPage({ product }: { product: ProductDetail }) {
         {/* 006 — STACK */}
         <section className="cx-section cx-section-tight" aria-label="The stack">
           <div className="cx-wrap">
-            <Reveal>
+            <ProductMotion slug={product.slug} index={9}>
               <SectionNumber index="006" label="The stack" />
               <Statement>
                 Three parts. <Dim>Each verifiable alone.</Dim>
               </Statement>
-            </Reveal>
-            <Reveal delay={0.06}>
+            </ProductMotion>
+            <ProductMotion slug={product.slug} index={10}>
               <div className="cx-workload-grid">
                 {product.stack.map((spec) => (
                   <div key={spec.title} className="cx-workload">
@@ -209,34 +210,34 @@ function ProductDetailPage({ product }: { product: ProductDetail }) {
                   </div>
                 ))}
               </div>
-            </Reveal>
+            </ProductMotion>
           </div>
         </section>
 
         {/* 007 — PROOF */}
         <section className="cx-section cx-section-tight" aria-label="Proof">
           <div className="cx-wrap">
-            <Reveal>
+            <ProductMotion slug={product.slug} index={11}>
               <SectionNumber index="007" label="Proof" />
               <Statement>
                 Structure, counted. <Dim>Outcomes, never invented.</Dim>
               </Statement>
-            </Reveal>
-            <Reveal delay={0.06}>
+            </ProductMotion>
+            <ProductMotion slug={product.slug} index={12}>
               <div style={{ marginTop: "2.5rem" }}>
                 <StatBlock label={`${product.name} structure`} stats={product.proof} />
                 <p style={{ marginTop: "1.4rem" }}>
                   <TechnicalLabel>{product.proofNote}</TechnicalLabel>
                 </p>
               </div>
-            </Reveal>
+            </ProductMotion>
           </div>
         </section>
 
         {/* 008 — HANDOFF */}
         <section className="cx-section" aria-label="Continue">
           <div className="cx-wrap">
-            <Reveal>
+            <ProductMotion slug={product.slug} index={13}>
               <div className="cx-closing">
                 <SectionNumber index="008" label="Handoff" />
                 <h2>One layer. Three systems.</h2>
@@ -262,7 +263,7 @@ function ProductDetailPage({ product }: { product: ProductDetail }) {
                   <Link href="/platform">The platform</Link>
                 </nav>
               </div>
-            </Reveal>
+            </ProductMotion>
           </div>
         </section>
       </main>

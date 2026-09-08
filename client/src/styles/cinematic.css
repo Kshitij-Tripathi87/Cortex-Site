@@ -894,7 +894,7 @@ button:focus-visible {
 
 .cx-flow {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 0;
   margin-top: clamp(2.5rem, 5vw, 4.5rem);
   border: 1px solid var(--cx-line);
@@ -2034,12 +2034,12 @@ select.cx-field {
 
 @media (max-width: 1180px) {
   .cx-flow {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
   }
-  .cx-flow-stage:nth-child(4) {
+  .cx-flow-stage:nth-child(odd) {
     border-left: 0;
   }
-  .cx-flow-stage:nth-child(n + 4) {
+  .cx-flow-stage:nth-child(n + 3) {
     border-top: 1px solid var(--cx-line-soft);
   }
   .cx-footer-grid {
@@ -2102,16 +2102,14 @@ select.cx-field {
     font-size: clamp(3rem, 15vw, 4.6rem);
   }
   .cx-flow {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
   }
   .cx-flow-stage {
+    border-left: 0;
     border-top: 1px solid var(--cx-line-soft);
   }
-  .cx-flow-stage:nth-child(-n + 2) {
+  .cx-flow-stage:first-child {
     border-top: 0;
-  }
-  .cx-flow-stage:nth-child(odd) {
-    border-left: 0;
   }
   .cx-flow-desc {
     min-height: 0;
@@ -2198,3 +2196,44 @@ select.cx-field {
 
 /* ---- Case-study legacy artwork unified into the dark system ---- */
 .cx-story-hero-img { filter: grayscale(.92) brightness(.84) contrast(1.06); }
+
+/* ---- Status ticker ---- */
+.cx-ticker {
+  border-block: 1px solid var(--cx-line);
+  background: rgba(13, 16, 20, 0.5);
+  overflow: hidden;
+}
+.cx-ticker-track {
+  display: flex;
+  width: max-content;
+  animation: cx-ticker 32s linear infinite;
+}
+.cx-ticker-group {
+  display: flex;
+  align-items: center;
+  gap: 3rem;
+  padding: 0.95rem 3rem 0.95rem 0;
+}
+.cx-ticker-group:first-child {
+  padding-left: 1.5rem;
+}
+.cx-ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3rem;
+  white-space: nowrap;
+  font: 500 0.68rem var(--cx-mono);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--cx-muted);
+}
+.cx-ticker-item i {
+  font-style: normal;
+  color: var(--cx-cobalt-bright);
+}
+@keyframes cx-ticker {
+  to { transform: translateX(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cx-ticker-track { animation: none; }
+}

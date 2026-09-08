@@ -1,7 +1,8 @@
 /* Cinematic system: Home. One continuous argument — signal to decision to
  * proof — paced by section numbers, carried by semantic HTML. */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
+import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, ArrowUpRight, Lock, ScrollText, ShieldCheck } from "lucide-react";
 import SEO from "@/components/SEO";
 import Header from "@/components/navigation/Header";
@@ -13,6 +14,7 @@ import Magnetic from "@/components/motion/Magnetic";
 import SectionNumber from "@/components/editorial/SectionNumber";
 import Statement, { Dim } from "@/components/editorial/Statement";
 import Divider from "@/components/editorial/Divider";
+import Ticker from "@/components/editorial/Ticker";
 import StatBlock from "@/components/product/StatBlock";
 import PipelineStrip from "@/components/product/PipelineStrip";
 import ProductPanel from "@/components/product/ProductPanel";
@@ -51,10 +53,26 @@ const FLOW_STAGES = [
 
 function FlowStages() {
   const [active, setActive] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const reduce = useReducedMotion();
   const stage = FLOW_STAGES[active];
+
+  useEffect(() => {
+    if (paused || reduce) return;
+    const id = setInterval(() => {
+      if (!document.hidden) setActive((a) => (a + 1) % FLOW_STAGES.length);
+    }, 5500);
+    return () => clearInterval(id);
+  }, [paused, reduce]);
+
   return (
-    <div>
-      <div className="cx-flow" role="group" aria-label="How intelligence moves through Cortex" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+    <div
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+    >
+      <div className="cx-flow" role="group" aria-label="How intelligence moves through Cortex">
         {FLOW_STAGES.map((item, i) => (
           <button
             key={item.index}
@@ -105,6 +123,7 @@ const SOLUTIONS = [
 ];
 
 export default function Home() {
+  const reduceMotion = useReducedMotion();
   return (
     <div className="cx-page">
       <SEO path="/" jsonLd={[websiteJsonLd(), organizationJsonLd()]} />
@@ -123,18 +142,34 @@ export default function Home() {
               </span>
             </div>
             <h1 className="cx-hero-title">
-              <span className="cx-line-mask">
-                <span className="cx-line-inner">See the system.</span>
-              </span>
-              <span className="cx-line-mask">
-                <span className="cx-line-inner">Seal the decision.</span>
-              </span>
+              {(["See the system.", "Seal the decision."] as const).map((line, i) => (
+                <span key={line} className="cx-line-mask">
+                  <motion.span
+                    className="cx-line-inner"
+                    initial={reduceMotion ? false : { y: "110%" }}
+                    animate={{ y: "0%" }}
+                    transition={{ duration: 0.9, delay: 0.15 + i * 0.12, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                    {line}
+                  </motion.span>
+                </span>
+              ))}
             </h1>
-            <p className="cx-hero-sub">
+            <motion.p
+              className="cx-hero-sub"
+              initial={reduceMotion ? false : { opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.55, ease: [0.22, 1, 0.36, 1] }}
+            >
               Cortex unifies your signals, forecasts what matters, and seals what was decided —
               Workflo, Nexus, and ASTRA on one layer.
-            </p>
-            <div className="cx-hero-ctas">
+            </motion.p>
+            <motion.div
+              className="cx-hero-ctas"
+              initial={reduceMotion ? false : { opacity: 0, y: 18 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.68, ease: [0.22, 1, 0.36, 1] }}
+            >
               <Link
                 href="/platform"
                 className="cx-btn cx-btn-primary"
@@ -145,8 +180,13 @@ export default function Home() {
               <Link href="/contact" className="cx-btn cx-btn-ghost">
                 Talk to Cortex
               </Link>
-            </div>
-            <div className="cx-hero-foot">
+            </motion.div>
+            <motion.div
+              className="cx-hero-foot"
+              initial={reduceMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 1, delay: 0.85 }}
+            >
               <span className="cx-scrollcue">
                 Scroll to explore <span className="cx-scrollcue-line" aria-hidden="true" />
               </span>
@@ -155,9 +195,11 @@ export default function Home() {
                 <br />
                 CORTEX / PUBLIC SITE v1
               </p>
-            </div>
+            </motion.div>
           </div>
         </section>
+
+        <Ticker />
 
         {/* 01 — STATEMENT */}
         <section className="cx-section" aria-labelledby="premise">
@@ -197,6 +239,7 @@ export default function Home() {
             <Reveal delay={0.1}>
               <FlowStages />
             </Reveal>
+            <Divider signal label="End of flow" />
           </div>
         </section>
 
