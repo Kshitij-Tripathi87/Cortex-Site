@@ -1,21 +1,7 @@
-/* Silverline Systems reminder: rate limits are guardrails, not punishments. Keep
- * windows short, responses explicit, and Retry-After honest. */
-
 import type { NextFunction, Request, Response } from "express";
+import { consumeRateLimitBucket, isDistributedRateLimiting, pruneRateLimitBuckets } from "../services/securityStore";
 
-type Bucket = { count: number; resetAt: number };
-
-const buckets = new Map<string, Bucket>();
-
-function prune() {
-  const now = Date.now();
-  buckets.forEach((bucket, key) => {
-    if (bucket.resetAt <= now) buckets.delete(key);
-  });
-}
-
-const pruneInterval = setInterval(prune, 60_000);
-pruneInterval.unref();
+type LocalBucket = { count: number; resetAt: number };
 
 function clientKey(req: Request): string {
   const forwarded = req.get("x-forwarded-for");
@@ -23,53 +9,75 @@ function clientKey(req: Request): string {
   return ip.slice(0, 128);
 }
 
-export type RateLimitOptions = {
-  /** Max requests per window per client. */
-  max: number;
-  /** Window length in milliseconds. */
-  windowMs: number;
-  /** Distinguishes limiters sharing the same store. */
-  name: string;
-};
+export type RateLimitOptions = { max: number; windowMs: number; name: string };
 
-export function rateLimit({ max, windowMs, name }: RateLimitOptions) {
+const localBuckets = new Map<string, LocalBucket>();
+const pruneInterval = setInterval(() => {
+  const now = Date.now();
+  localBuckets.forEach((bucket, key) => {
+    if (bucket.resetAt <= now) localBuckets.delete(key);
+  });
+  if (isDistributedRateLimiting()) void pruneRateLimitBuckets().catch((error) => console.error("[rateLimit] prune failed:", error));
+}, 60_000);
+pruneInterval.unref();
+
+function applyHeaders(res: Response, max: number, count: number, resetAt: number): void {
+  res.setHeader("X-RateLimit-Limit", String(max));
+  res.setHeader("X-RateLimit-Remaining", String(Math.max(0, max - count)));
+  res.setHeader("X-RateLimit-Reset", String(Math.ceil(resetAt / 1000)));
+}
+
+function rateLimitLocal({ max, windowMs, name }: RateLimitOptions) {
   return (req: Request, res: Response, next: NextFunction) => {
     const now = Date.now();
     const key = `${name}:${clientKey(req)}`;
-    const existing = buckets.get(key);
-
-    if (!existing || existing.resetAt <= now) {
-      buckets.set(key, { count: 1, resetAt: now + windowMs });
-      res.setHeader("X-RateLimit-Limit", String(max));
-      res.setHeader("X-RateLimit-Remaining", String(max - 1));
+    const current = localBuckets.get(key);
+    if (!current || current.resetAt <= now) {
+      const bucket = { count: 1, resetAt: now + windowMs };
+      localBuckets.set(key, bucket);
+      applyHeaders(res, max, bucket.count, bucket.resetAt);
       next();
       return;
     }
-
-    if (existing.count >= max) {
-      const retryAfter = Math.max(1, Math.ceil((existing.resetAt - now) / 1000));
-      res.setHeader("Retry-After", String(retryAfter));
-      res.setHeader("X-RateLimit-Limit", String(max));
-      res.setHeader("X-RateLimit-Remaining", "0");
+    if (current.count >= max) {
+      applyHeaders(res, max, current.count, current.resetAt);
+      res.setHeader("Retry-After", String(Math.max(1, Math.ceil((current.resetAt - now) / 1000))));
       res.status(429).json({ error: "Too many requests. Please try again shortly." });
       return;
     }
-
-    existing.count += 1;
-    res.setHeader("X-RateLimit-Limit", String(max));
-    res.setHeader("X-RateLimit-Remaining", String(max - existing.count));
+    current.count += 1;
+    applyHeaders(res, max, current.count, current.resetAt);
     next();
   };
 }
 
-/** Presets tuned for a marketing site: generous reads, strict writes. */
+function rateLimitDistributed({ max, windowMs, name }: RateLimitOptions) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const key = `${name}:${clientKey(req)}`;
+    try {
+      const bucket = await consumeRateLimitBucket(key, max, windowMs);
+      applyHeaders(res, max, bucket.count, bucket.resetAt);
+      if (!bucket.allowed) {
+        res.setHeader("Retry-After", String(Math.max(1, Math.ceil((bucket.resetAt - Date.now()) / 1000))));
+        res.status(429).json({ error: "Too many requests. Please try again shortly." });
+        return;
+      }
+      next();
+    } catch (error) {
+      console.error("[rateLimit] Distributed store unavailable; failing closed:", error);
+      res.status(503).json({ error: "Request protection is temporarily unavailable. Please try again shortly." });
+    }
+  };
+}
+
+export function rateLimit(options: RateLimitOptions) {
+  return isDistributedRateLimiting() ? rateLimitDistributed(options) : rateLimitLocal(options);
+}
+
 export const apiLimiters = {
-  /** Form submissions and other PII writes. */
   write: () => rateLimit({ name: "api-write", max: 12, windowMs: 10 * 60_000 }),
-  /** AI chat: strict enough to stop abuse, loose enough for real use. */
   ai: () => rateLimit({ name: "api-ai", max: 20, windowMs: 10 * 60_000 }),
-  /** Analytics beacons. */
   analytics: () => rateLimit({ name: "api-analytics", max: 120, windowMs: 60_000 }),
-  /** Public content reads. */
   read: () => rateLimit({ name: "api-read", max: 120, windowMs: 60_000 }),
+  adminLogin: () => rateLimit({ name: "admin-login", max: 8, windowMs: 15 * 60_000 }),
 };
