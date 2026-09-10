@@ -8,6 +8,7 @@ import { resolveRedirect } from "../shared/site";
 import { jsonErrorHandler, requestId, securityHeaders } from "./middleware/security";
 import { loadConfig } from "./config";
 import { getSupabaseAdmin } from "./services/supabase";
+import { renderRouteHtml, isKnownRoute } from "./render";
 import { adminRouter } from "./routes/admin";
 import { aiRouter } from "./routes/ai";
 import { analyticsRouter } from "./routes/analytics";
@@ -21,12 +22,7 @@ import { waitlistRouter } from "./routes/waitlist";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const config = loadConfig();
-
-// Production must never start with a silently unavailable authoritative store.
-if (config.isProduction) {
-  getSupabaseAdmin();
-}
-
+if (config.isProduction) getSupabaseAdmin();
 const port = config.port;
 const staticPath = path.resolve(__dirname, "public");
 
@@ -94,8 +90,14 @@ app.use(cacheTuner);
 app.use(express.static(staticPath, { etag: true }));
 app.use("/api", (_req, res) => res.status(404).json({ error: "not found" }));
 
-app.get("*", (_req, res, next) => {
-  res.sendFile(path.join(staticPath, "index.html"), (err) => { if (err) next(err); });
+app.get("*", (req, res, next) => {
+  if (!isKnownRoute(req.path)) {
+    try { res.status(404).send(renderRouteHtml({ staticPath, pathname: "/404" })); }
+    catch (error) { next(error); }
+    return;
+  }
+  try { res.status(200).send(renderRouteHtml({ staticPath, pathname: req.path })); }
+  catch (error) { next(error); }
 });
 
 app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
@@ -105,8 +107,5 @@ app.use((err: unknown, req: express.Request, res: express.Response, _next: expre
 });
 
 const server = createServer(app);
-server.on("error", (err: NodeJS.ErrnoException) => {
-  console.error("[server] listen error:", err);
-  process.exit(1);
-});
+server.on("error", (err: NodeJS.ErrnoException) => { console.error("[server] listen error:", err); process.exit(1); });
 server.listen(port, () => console.log(`Server running on http://localhost:${port}/`));
