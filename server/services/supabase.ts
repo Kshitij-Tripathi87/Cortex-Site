@@ -1,38 +1,50 @@
-/* Silverline Systems reminder: the service-role key is server property. It bypasses
- * RLS, so it must never be prefixed VITE_, logged, or sent to the browser. */
+/* Service-role Supabase client. This module is server-only. */
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 let client: SupabaseClient | null | undefined;
+let initializationError: Error | null = null;
 
 function readEnv(name: string): string {
   return (process.env[name] ?? "").trim();
 }
 
 /**
- * Returns a service-role Supabase client when configured, otherwise null.
- * Null means "Supabase not provisioned yet" — callers must fall back to the
- * local JSON store so the site works with zero configuration.
+ * Returns the service-role client when configured.
+ * In production, invalid/missing configuration is an application failure;
+ * local JSON/security fallbacks are intentionally available only in dev.
  */
 export function getSupabaseAdmin(): SupabaseClient | null {
-  if (client !== undefined) return client;
+  if (client !== undefined) {
+    if (initializationError && process.env.NODE_ENV === "production") throw initializationError;
+    return client;
+  }
 
   const url = readEnv("SUPABASE_URL");
   const serviceKey = readEnv("SUPABASE_SERVICE_ROLE_KEY");
 
   if (!url || !serviceKey) {
     client = null;
+    initializationError = new Error("Supabase is not configured.");
+    if (process.env.NODE_ENV === "production") throw initializationError;
     return client;
   }
 
   try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      throw new Error(`Invalid SUPABASE_URL protocol: ${parsed.protocol}`);
+    }
     client = createClient(url, serviceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
       global: { headers: { "X-Client-Info": "cortex-marketing-server" } },
     });
+    initializationError = null;
   } catch (error) {
-    console.error("[supabase] Failed to initialize client:", error);
+    initializationError = error instanceof Error ? error : new Error(String(error));
     client = null;
+    console.error("[supabase] Failed to initialize client:", initializationError.message);
+    if (process.env.NODE_ENV === "production") throw initializationError;
   }
   return client;
 }
@@ -42,6 +54,7 @@ export function isSupabaseEnabled(): boolean {
 }
 
 /** Test-only hook to reset the memoized client. */
-export function __resetSupabaseClientForTests() {
+export function __resetSupabaseClientForTests(): void {
   client = undefined;
+  initializationError = null;
 }
