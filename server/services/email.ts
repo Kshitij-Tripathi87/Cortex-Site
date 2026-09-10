@@ -12,13 +12,15 @@ function escapeHtml(value: string): string {
 }
 
 function emailMode(): string {
-  return (process.env.WORKFLO_EMAIL_MODE || "resend").trim().toLowerCase();
+  // Issue #11: Prefer CORTEX_* env vars, fall back to WORKFLO_* for backward compatibility.
+  return (process.env.CORTEX_EMAIL_MODE || process.env.WORKFLO_EMAIL_MODE || "resend").trim().toLowerCase();
 }
 
 function resendConfig(toFallback: string, fromFallback: string) {
   const resendApiKey = process.env.RESEND_API_KEY?.trim();
-  const to = (process.env.CORTEX_CONTACT_TO_EMAIL || process.env.WORKFLO_WAITLIST_TO_EMAIL || toFallback).trim();
-  const from = (process.env.CORTEX_CONTACT_EMAIL_FROM || process.env.WORKFLO_EMAIL_FROM || fromFallback).trim();
+  // Issue #11: Prefer CORTEX_* env vars, fall back to WORKFLO_* for backward compatibility.
+  const to = (process.env.CORTEX_CONTACT_TO_EMAIL || process.env.CORTEX_WAITLIST_TO_EMAIL || process.env.WORKFLO_WAITLIST_TO_EMAIL || toFallback).trim();
+  const from = (process.env.CORTEX_CONTACT_EMAIL_FROM || process.env.CORTEX_EMAIL_FROM || process.env.WORKFLO_EMAIL_FROM || fromFallback).trim();
   return { resendApiKey, to, from };
 }
 
@@ -72,17 +74,17 @@ async function sendViaResend(options: {
 }
 
 export async function sendWaitlistNotification(signup: WaitlistSignup): Promise<void> {
-  const { to, from } = resendConfig("admin@workflo.local", "mock@workflo.local");
-  const subject = `New Workflo early-access request from ${signup.name}`;
+  const { to, from } = resendConfig("admin@cortex.local", "mock@cortex.local");
+  const subject = `New Cortex early-access request from ${signup.name}`;
   const text = [
-    "New Workflo early-access request",
+    "New Cortex early-access request",
     `Name: ${signup.name}`,
     `Email: ${signup.email}`,
     `Company: ${signup.company || "Not provided"}`,
     `Submitted: ${signup.submittedAt}`,
   ].join("\n");
   const html =
-    `<h2>New Workflo early-access request</h2>` +
+    `<h2>New Cortex early-access request</h2>` +
     `<p><strong>Name:</strong> ${escapeHtml(signup.name)}</p>` +
     `<p><strong>Email:</strong> ${escapeHtml(signup.email)}</p>` +
     `<p><strong>Company:</strong> ${escapeHtml(signup.company || "Not provided")}</p>` +

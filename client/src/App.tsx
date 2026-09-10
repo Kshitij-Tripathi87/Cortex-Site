@@ -31,15 +31,6 @@ function LegacyRedirect({ to }: { to: string }) {
   return null;
 }
 
-function LegacyProductRedirect({ slug }: { slug: string }) {
-  const map: Record<string, string> = {
-    sense: "workflo",
-    decide: "nexus",
-    scale: "astra",
-  };
-  return <LegacyRedirect to={`/products/${map[slug] ?? slug}`} />;
-}
-
 function Router() {
   usePageView();
   return (
@@ -50,9 +41,8 @@ function Router() {
       <Route path="/products" component={() => <SectionPage type="product" />} />
       <Route path="/products/:slug">{(params) => <DetailPage kind="product" slug={params.slug} />}</Route>
 
-      {/* Legacy product paths → canonical */}
+      {/* Legacy product path → canonical (path normalization only) */}
       <Route path="/product">{() => <LegacyRedirect to="/products" />}</Route>
-      <Route path="/product/:slug">{(params) => <LegacyProductRedirect slug={params.slug} />}</Route>
 
       {/* Platform + solutions */}
       <Route path="/platform" component={() => <SectionPage type="platform" />} />
