@@ -1,37 +1,32 @@
-/* Issue #6: durable distributed admin session and login security state. */
+/* Private Cortex admin surface: Supabase Auth identity + opaque server session. */
 
+import { randomBytes } from "crypto";
 import { Router } from "express";
 import type { Request, Response } from "express";
-import { createHash, randomBytes, timingSafeEqual } from "crypto";
-import { AdminLoginSchema, type AdminLoginInput } from "../../shared/schemas";
-import { validateBody, validated } from "../middleware/validation";
+import { z } from "zod";
+import { apiLimiters } from "../middleware/rateLimit";
 import {
-  listAnalyticsEvents,
-  listContactRequests,
-  listDemoRequests,
-  listNewsletterSignups,
-  listWaitlistSignups,
+  listAnalyticsEvents, listContactRequests, listDemoRequests,
+  listNewsletterSignups, listWaitlistSignups,
 } from "../services/store";
 import {
-  createSession,
-  readSession,
-  updateSessionExpiry,
-  deleteSession,
+  createSession, readSession, updateSessionExpiry, deleteSession,
   pruneExpiredSessions,
-  readLoginAttempts,
-  recordFailedLogin,
-  deleteLoginAttempts,
-  pruneLoginAttempts,
 } from "../services/securityStore";
+import { isSupabaseAuthEnabled, loginWithSupabaseAuth } from "../services/auth";
+import { validateBody, validated } from "../middleware/validation";
 
 export const adminRouter = Router();
 
 const isProduction = process.env.NODE_ENV === "production";
 const ADMIN_SESSION_COOKIE = "cortex_admin_session";
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
-const LOGIN_WINDOW_MS = 10 * 60 * 1000;
-const LOGIN_MAX_ATTEMPTS = 8;
-const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
+
+const SupabaseLoginSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+  password: z.string().min(1).max(512),
+});
+type SupabaseLoginInput = z.infer<typeof SupabaseLoginSchema>;
 
 function parseCookies(header: string | undefined): Record<string, string> {
   const cookies: Record<string, string> = {};
@@ -47,131 +42,82 @@ function parseCookies(header: string | undefined): Record<string, string> {
   return cookies;
 }
 
-function setAdminSessionCookie(res: Response, sessionId: string, maxAgeMs: number) {
-  const attributes = [
-    `${ADMIN_SESSION_COOKIE}=${encodeURIComponent(sessionId)}`,
-    "HttpOnly", "Path=/", "SameSite=Strict", `Max-Age=${Math.floor(maxAgeMs / 1000)}`,
-  ];
+function readAdminSessionId(req: Request): string | undefined { return parseCookies(req.get("cookie"))[ADMIN_SESSION_COOKIE]; }
+
+function setAdminSessionCookie(res: Response, sessionId: string, maxAgeMs: number): void {
+  const attributes = [`${ADMIN_SESSION_COOKIE}=${encodeURIComponent(sessionId)}`, "HttpOnly", "Path=/", "SameSite=Strict", `Max-Age=${Math.floor(maxAgeMs / 1000)}`];
   if (isProduction) attributes.push("Secure");
   res.setHeader("Set-Cookie", attributes.join("; "));
 }
 
-function clearAdminSessionCookie(res: Response) {
+function clearAdminSessionCookie(res: Response): void {
   const attributes = [`${ADMIN_SESSION_COOKIE}=`, "HttpOnly", "Path=/", "SameSite=Strict", "Max-Age=0"];
   if (isProduction) attributes.push("Secure");
   res.setHeader("Set-Cookie", attributes.join("; "));
 }
 
-function readAdminSessionId(req: Request): string | undefined {
-  return parseCookies(req.get("cookie"))[ADMIN_SESSION_COOKIE];
-}
-
-function timingSafeStringsEqual(a: string, b: string): boolean {
-  return timingSafeEqual(createHash("sha256").update(a).digest(), createHash("sha256").update(b).digest());
-}
-
-function getClientKey(req: Request): string {
-  return req.ip || req.socket.remoteAddress || "unknown";
-}
-
 const pruneInterval = setInterval(() => {
   void pruneExpiredSessions().catch((error) => console.error("[admin] session prune failed:", error));
-  void pruneLoginAttempts().catch((error) => console.error("[admin] login-attempt prune failed:", error));
 }, 15 * 60 * 1000);
 pruneInterval.unref();
 
-adminRouter.post("/admin/login", validateBody(AdminLoginSchema), async (req, res) => {
-  const configuredToken = process.env.WORKFLO_ADMIN_TOKEN?.trim();
-  if (!configuredToken) {
-    res.status(503).json({ error: "Admin access is not configured." });
-    return;
-  }
-
-  const clientKey = getClientKey(req);
+adminRouter.post("/admin/auth/login", apiLimiters.adminLogin(), validateBody(SupabaseLoginSchema), async (req, res) => {
+  if (!isSupabaseAuthEnabled()) { res.status(503).json({ error: "Authentication service is not configured." }); return; }
   try {
-    const attemptState = await readLoginAttempts(clientKey);
-    const now = Date.now();
-    if (attemptState?.lockedUntil && attemptState.lockedUntil > now) {
-      res.setHeader("Retry-After", String(Math.ceil((attemptState.lockedUntil - now) / 1000)));
-      res.status(429).json({ error: "Too many attempts. Please try again later." });
-      return;
-    }
-
-    if (attemptState && now - attemptState.firstAttemptAt > LOGIN_WINDOW_MS) {
-      await deleteLoginAttempts(clientKey);
-    }
-
-    const { token } = validated<AdminLoginInput>(req);
-    if (!timingSafeStringsEqual(token, configuredToken)) {
-      const state = await recordFailedLogin(clientKey, LOGIN_MAX_ATTEMPTS, LOGIN_WINDOW_MS, LOGIN_LOCKOUT_MS);
-      if (state.lockedUntil > now) {
-        res.setHeader("Retry-After", String(Math.ceil((state.lockedUntil - now) / 1000)));
-      }
-      res.status(401).json({ error: "Invalid admin token." });
-      return;
-    }
-
-    await deleteLoginAttempts(clientKey);
+    const { email, password } = validated<SupabaseLoginInput>(req);
+    const admin = await loginWithSupabaseAuth(email, password);
+    if (!admin) { res.status(401).json({ error: "Invalid credentials." }); return; }
     const sessionId = randomBytes(32).toString("hex");
-    await createSession(sessionId, Date.now() + SESSION_TTL_MS, clientKey, req.get("user-agent") ?? "");
+    await createSession(sessionId, Date.now() + SESSION_TTL_MS, req.ip || req.socket.remoteAddress || "unknown", req.get("user-agent") ?? "");
     setAdminSessionCookie(res, sessionId, SESSION_TTL_MS);
-    res.status(200).json({ ok: true });
+    res.status(200).json({ ok: true, user: { email: admin.email } });
   } catch (error) {
-    console.error("[admin] authentication state unavailable:", error);
+    console.error("[admin] Supabase Auth login failed:", error);
     res.status(503).json({ error: "Authentication service is temporarily unavailable." });
   }
 });
 
 adminRouter.post("/admin/logout", async (req, res) => {
-  const sessionId = readAdminSessionId(req);
   try {
+    const sessionId = readAdminSessionId(req);
     if (sessionId) await deleteSession(sessionId);
     clearAdminSessionCookie(res);
     res.status(200).json({ ok: true });
   } catch (error) {
-    console.error("[admin] logout state unavailable:", error);
+    console.error("[admin] logout failed:", error);
     res.status(503).json({ error: "Authentication service is temporarily unavailable." });
   }
 });
 
-adminRouter.get("/admin/session", async (req, res) => {
+async function sessionIdentity(req: Request): Promise<{ ok: true; sessionId: string } | { ok: false; status: number; error: string }> {
   const sessionId = readAdminSessionId(req);
-  if (!sessionId) { res.status(200).json({ authenticated: false }); return; }
+  if (!sessionId) return { ok: false, status: 401, error: "Unauthorized." };
   try {
     const session = await readSession(sessionId);
     if (!session || session.expiresAt <= Date.now()) {
       if (session) await deleteSession(sessionId);
-      res.status(200).json({ authenticated: false });
-      return;
+      return { ok: false, status: 401, error: "Unauthorized." };
     }
-    const newExpiry = Date.now() + SESSION_TTL_MS;
-    await updateSessionExpiry(sessionId, newExpiry);
-    setAdminSessionCookie(res, sessionId, SESSION_TTL_MS);
-    res.status(200).json({ authenticated: true });
+    await updateSessionExpiry(sessionId, Date.now() + SESSION_TTL_MS);
+    return { ok: true, sessionId };
   } catch (error) {
-    console.error("[admin] session lookup unavailable:", error);
-    res.status(503).json({ error: "Authentication service is temporarily unavailable." });
+    console.error("[admin] session lookup failed:", error);
+    return { ok: false, status: 503, error: "Authentication service is temporarily unavailable." };
   }
+}
+
+adminRouter.get("/admin/session", async (req, res) => {
+  const identity = await sessionIdentity(req);
+  if (!identity.ok) { clearAdminSessionCookie(res); res.status(identity.status).json({ error: identity.error, authenticated: false }); return; }
+  setAdminSessionCookie(res, identity.sessionId, SESSION_TTL_MS);
+  res.status(200).json({ authenticated: true });
 });
 
 async function requireAdmin(req: Request, res: Response): Promise<boolean> {
-  const sessionId = readAdminSessionId(req);
-  if (!sessionId) { res.status(401).json({ error: "Unauthorized." }); return false; }
-  try {
-    const session = await readSession(sessionId);
-    if (!session || session.expiresAt <= Date.now()) {
-      if (session) await deleteSession(sessionId);
-      res.status(401).json({ error: "Unauthorized." });
-      return false;
-    }
-    await updateSessionExpiry(sessionId, Date.now() + SESSION_TTL_MS);
-    setAdminSessionCookie(res, sessionId, SESSION_TTL_MS);
-    return true;
-  } catch (error) {
-    console.error("[admin] authorization state unavailable:", error);
-    res.status(503).json({ error: "Authentication service is temporarily unavailable." });
-    return false;
-  }
+  const identity = await sessionIdentity(req);
+  if (!identity.ok) { res.status(identity.status).json({ error: identity.error }); return false; }
+  setAdminSessionCookie(res, identity.sessionId, SESSION_TTL_MS);
+  return true;
 }
 
 async function guardedList(req: Request, res: Response, label: string, loader: () => Promise<unknown[]>) {
