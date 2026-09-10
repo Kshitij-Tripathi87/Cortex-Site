@@ -62,9 +62,7 @@ describe("form submission reliability", () => {
       expect(response.status).toBe(200);
       expect(mocks.saveContactRequest).toHaveBeenCalledOnce();
       expect(mocks.sendContactNotification).toHaveBeenCalledOnce();
-      const savedOrder = mocks.saveContactRequest.mock.invocationCallOrder[0];
-      const emailOrder = mocks.sendContactNotification.mock.invocationCallOrder[0];
-      expect(savedOrder).toBeLessThan(emailOrder);
+      expect(mocks.saveContactRequest.mock.invocationCallOrder[0]).toBeLessThan(mocks.sendContactNotification.mock.invocationCallOrder[0]);
       expect(mocks.sendContactNotification.mock.calls[0][1]).toContain("cortex-contact-");
     });
   });
@@ -101,13 +99,15 @@ describe("form submission reliability", () => {
 
   it("preserves the same failure-safe ordering for demo and waitlist forms", async () => {
     await withHttpServer(createApp(demoRouter), async (baseUrl) => {
-      const response = await post(baseUrl, "/api/demo", { ...contactBody, role: "Engineering", companySize: "10-50" });
-      expect(response.status).toBe(200); expect(mocks.saveDemoRequest).toHaveBeenCalledOnce(); expect(mocks.sendDemoNotification).toHaveBeenCalledOnce();
+      const response = await post(baseUrl, "/api/demo", { ...contactBody, role: "Engineering", companySize: "11-50" });
+      expect(response.status).toBe(200);
+      expect(mocks.saveDemoRequest).toHaveBeenCalledOnce(); expect(mocks.sendDemoNotification).toHaveBeenCalledOnce();
       expect(mocks.sendDemoNotification.mock.calls[0][1]).toContain("cortex-demo-");
     });
     await withHttpServer(createApp(waitlistRouter), async (baseUrl) => {
       const response = await post(baseUrl, "/api/waitlist", { name: contactBody.name, email: contactBody.email, company: contactBody.company });
-      expect(response.status).toBe(200); expect(mocks.saveWaitlistSignup).toHaveBeenCalledOnce(); expect(mocks.sendWaitlistNotification).toHaveBeenCalledOnce();
+      expect(response.status).toBe(200);
+      expect(mocks.saveWaitlistSignup).toHaveBeenCalledOnce(); expect(mocks.sendWaitlistNotification).toHaveBeenCalledOnce();
       expect(mocks.sendWaitlistNotification.mock.calls[0][1]).toContain("cortex-waitlist-");
     });
   });
