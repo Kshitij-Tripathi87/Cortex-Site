@@ -1,0 +1,56 @@
+# Render Blueprint — Cortex-Site
+# https://render.com/docs/blueprint-spec
+# Issue #9: Render deployment contract
+#
+# Secrets are NEVER stored in this file.
+# They are injected via the Render dashboard or `render secret set`.
+
+services:
+  - type: web
+    name: cortex-site
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    rootDir: .
+    healthCheckPath: /api/health
+    autoDeploy: true
+    buildCommand: pnpm install --frozen-lockfile && pnpm build
+    startCommand: node dist/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: WORKFLO_EMAIL_MODE
+        value: resend
+      - key: CORTEX_CONTACT_TO_EMAIL
+        sync: false
+      - key: CORTEX_CONTACT_EMAIL_FROM
+        sync: false
+      - key: WORKFLO_WAITLIST_TO_EMAIL
+        sync: false
+      - key: WORKFLO_EMAIL_FROM
+        sync: false
+      - key: WORKFLO_ADMIN_TOKEN
+        sync: false
+      - key: OLLAMA_BASE_URL
+        sync: false
+      - key: OLLAMA_MODEL
+        value: llama3
+      - key: WORKFLO_WAITLIST_FILE
+        value: data/waitlist.json
+      - key: CORTEX_CONTACT_FILE
+        value: data/contacts.json
+      - key: CORTEX_DEMO_FILE
+        value: data/demos.json
+      - key: CORTEX_NEWSLETTER_FILE
+        value: data/newsletter.json
+      - key: CORTEX_ANALYTICS_FILE
+        value: data/analytics.json
