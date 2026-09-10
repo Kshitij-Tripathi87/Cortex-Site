@@ -1,5 +1,4 @@
-/* Silverline Systems reminder: the browser never sends email. All notifications are
- * composed and dispatched here, on the server, with explicit configuration. */
+/* Server-side notification delivery. The browser never sends provider credentials. */
 
 import type { ContactRequest, DemoRequest, WaitlistSignup } from "./store";
 
@@ -12,48 +11,58 @@ function escapeHtml(value: string): string {
 }
 
 function emailMode(): string {
-  return (process.env.WORKFLO_EMAIL_MODE || "resend").trim().toLowerCase();
+  return (process.env.CORTEX_EMAIL_MODE || process.env.WORKFLO_EMAIL_MODE || "resend").trim().toLowerCase();
 }
 
-function resendConfig(toFallback: string, fromFallback: string) {
+type FormKind = "contact" | "demo" | "waitlist";
+
+function resendConfig(kind: FormKind, fallbackTo: string, fallbackFrom: string) {
   const resendApiKey = process.env.RESEND_API_KEY?.trim();
-  const to = (process.env.CORTEX_CONTACT_TO_EMAIL || process.env.WORKFLO_WAITLIST_TO_EMAIL || toFallback).trim();
-  const from = (process.env.CORTEX_CONTACT_EMAIL_FROM || process.env.WORKFLO_EMAIL_FROM || fromFallback).trim();
+  const toEnv = kind === "waitlist" ? "CORTEX_WAITLIST_TO_EMAIL" : "CORTEX_CONTACT_TO_EMAIL";
+  const legacyToEnv = kind === "waitlist" ? "WORKFLO_WAITLIST_TO_EMAIL" : undefined;
+  const fromEnv = kind === "waitlist" ? "CORTEX_EMAIL_FROM" : "CORTEX_CONTACT_EMAIL_FROM";
+  const legacyFromEnv = kind === "waitlist" ? "WORKFLO_EMAIL_FROM" : undefined;
+  const to = (process.env[toEnv] || (legacyToEnv ? process.env[legacyToEnv] : "") || fallbackTo).trim();
+  const from = (process.env[fromEnv] || (legacyFromEnv ? process.env[legacyFromEnv] : "") || fallbackFrom).trim();
   return { resendApiKey, to, from };
 }
 
 async function sendViaResend(options: {
+  kind: FormKind;
   from: string;
   to: string;
   replyTo: string;
   subject: string;
   text: string;
   html: string;
-  logScope: string;
+  idempotencyKey?: string;
 }): Promise<void> {
   if (emailMode() === "mock") {
-    console.info(`[${options.logScope}] Mock email notification:`, {
+    console.info(`[${options.kind}] Mock email notification:`, {
       from: options.from,
       to: options.to,
       subject: options.subject,
       text: options.text,
+      idempotencyKey: options.idempotencyKey,
     });
     return;
   }
 
-  const { resendApiKey } = resendConfig(options.to, options.from);
-  // resendConfig re-reads env for the key; to/from were already resolved by the caller.
+  const { resendApiKey } = resendConfig(options.kind, options.to, options.from);
   if (!resendApiKey || !options.to || !options.from) {
-    console.error(`[${options.logScope}] Missing RESEND_API_KEY or notification addresses`);
+    console.error(`[${options.kind}] Missing Resend credentials or notification addresses`);
     throw new Error(EMAIL_CONFIG_MISSING);
   }
 
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${resendApiKey}`,
+    "Content-Type": "application/json",
+  };
+  if (options.idempotencyKey) headers["Idempotency-Key"] = options.idempotencyKey;
+
   const emailResponse = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${resendApiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify({
       from: options.from,
       to: [options.to],
@@ -66,32 +75,32 @@ async function sendViaResend(options: {
 
   if (!emailResponse.ok) {
     const providerError = await emailResponse.text();
-    console.error(`[${options.logScope}] Email provider rejected notification:`, providerError);
+    console.error(`[${options.kind}] Email provider rejected notification:`, providerError);
     throw new Error("email_provider_rejected");
   }
 }
 
-export async function sendWaitlistNotification(signup: WaitlistSignup): Promise<void> {
-  const { to, from } = resendConfig("admin@workflo.local", "mock@workflo.local");
-  const subject = `New Workflo early-access request from ${signup.name}`;
+export async function sendWaitlistNotification(signup: WaitlistSignup, idempotencyKey?: string): Promise<void> {
+  const { to, from } = resendConfig("waitlist", "admin@cortex.local", "noreply@cortex.local");
+  const subject = `New Cortex early-access request from ${signup.name}`;
   const text = [
-    "New Workflo early-access request",
+    "New Cortex early-access request",
     `Name: ${signup.name}`,
     `Email: ${signup.email}`,
     `Company: ${signup.company || "Not provided"}`,
     `Submitted: ${signup.submittedAt}`,
   ].join("\n");
   const html =
-    `<h2>New Workflo early-access request</h2>` +
+    `<h2>New Cortex early-access request</h2>` +
     `<p><strong>Name:</strong> ${escapeHtml(signup.name)}</p>` +
     `<p><strong>Email:</strong> ${escapeHtml(signup.email)}</p>` +
     `<p><strong>Company:</strong> ${escapeHtml(signup.company || "Not provided")}</p>` +
     `<p><strong>Submitted:</strong> ${escapeHtml(signup.submittedAt)}</p>`;
-  await sendViaResend({ from, to, replyTo: signup.email, subject, text, html, logScope: "waitlist" });
+  await sendViaResend({ kind: "waitlist", from, to, replyTo: signup.email, subject, text, html, idempotencyKey });
 }
 
-export async function sendContactNotification(request: ContactRequest): Promise<void> {
-  const { to, from } = resendConfig("admin@cortex.local", "mock@cortex.local");
+export async function sendContactNotification(request: ContactRequest, idempotencyKey?: string): Promise<void> {
+  const { to, from } = resendConfig("contact", "admin@cortex.local", "noreply@cortex.local");
   const subject = `New Cortex conversation request from ${request.name}`;
   const text = [
     "New Cortex conversation request",
@@ -110,11 +119,11 @@ export async function sendContactNotification(request: ContactRequest): Promise<
     `<p><strong>Topic:</strong> ${escapeHtml(request.product || "Not specified")}</p>` +
     `<p><strong>Message:</strong> ${escapeHtml(request.message)}</p>` +
     `<p><strong>Submitted:</strong> ${escapeHtml(request.submittedAt)}</p>`;
-  await sendViaResend({ from, to, replyTo: request.email, subject, text, html, logScope: "contact" });
+  await sendViaResend({ kind: "contact", from, to, replyTo: request.email, subject, text, html, idempotencyKey });
 }
 
-export async function sendDemoNotification(request: DemoRequest): Promise<void> {
-  const { to, from } = resendConfig("admin@cortex.local", "mock@cortex.local");
+export async function sendDemoNotification(request: DemoRequest, idempotencyKey?: string): Promise<void> {
+  const { to, from } = resendConfig("contact", "admin@cortex.local", "noreply@cortex.local");
   const subject = `New Cortex demo request from ${request.name} (${request.company})`;
   const text = [
     "New Cortex demo request",
@@ -139,5 +148,5 @@ export async function sendDemoNotification(request: DemoRequest): Promise<void> 
     `<p><strong>Preferred date:</strong> ${escapeHtml(request.preferredDate || "Flexible")}</p>` +
     `<p><strong>Message:</strong> ${escapeHtml(request.message || "—")}</p>` +
     `<p><strong>Submitted:</strong> ${escapeHtml(request.submittedAt)}</p>`;
-  await sendViaResend({ from, to, replyTo: request.email, subject, text, html, logScope: "demo" });
+  await sendViaResend({ kind: "contact", from, to, replyTo: request.email, subject, text, html, idempotencyKey });
 }
