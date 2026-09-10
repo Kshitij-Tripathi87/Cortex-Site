@@ -139,6 +139,10 @@ export async function listNewsletterSignups(): Promise<NewsletterSignup[]> {
   return loadJson<NewsletterSignup>(newsletterFile);
 }
 
+export async function saveAnalyticsEvent(event: AnalyticsRecord): Promise<StoreResult> {
+  return recordAnalyticsEvent(event);
+}
+
 export async function recordAnalyticsEvent(event: AnalyticsRecord): Promise<StoreResult> {
   const supabase = getSupabaseAdmin();
   if (supabase) return supabaseInsert("analytics_events", { event: event.event, page: event.page, referrer: event.referrer, session_id: event.sessionId, properties: event.properties, utm_source: event.utm.source, utm_medium: event.utm.medium, utm_campaign: event.utm.campaign, utm_term: event.utm.term, utm_content: event.utm.content, occurred_at: event.occurredAt });
@@ -147,5 +151,6 @@ export async function recordAnalyticsEvent(event: AnalyticsRecord): Promise<Stor
 export async function listAnalyticsEvents(limit = 500): Promise<AnalyticsRecord[]> {
   const remote = await trySupabaseList<{ id: string; event: string; page: string | null; referrer: string | null; session_id: string | null; properties: Record<string, string | number | boolean> | null; utm_source: string | null; utm_medium: string | null; utm_campaign: string | null; utm_term: string | null; utm_content: string | null; occurred_at: string; created_at: string }>("analytics_events", limit);
   if (remote !== null) return remote.map((row) => ({ id: String(row.id), event: row.event, page: row.page ?? "", referrer: row.referrer ?? "", sessionId: row.session_id ?? "", properties: row.properties ?? {}, utm: { source: row.utm_source ?? "", medium: row.utm_medium ?? "", campaign: row.utm_campaign ?? "", term: row.utm_term ?? "", content: row.utm_content ?? "" }, occurredAt: row.occurred_at, receivedAt: row.created_at }));
-  return loadJson<AnalyticsRecord>(analyticsFile).slice(0, limit);
+  const localEntries = await loadJson<AnalyticsRecord>(analyticsFile);
+  return localEntries.slice(0, limit);
 }
