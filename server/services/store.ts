@@ -1,10 +1,18 @@
-/* Silverline Systems reminder: no lead is ever lost to infrastructure. Writes go to
- * Supabase when configured and always land in the local JSON store as backup.
- * Reads prefer Supabase, then fall back to local files. */
+/*
+ * Issue #4: Durable Supabase persistence.
+ *
+ * Production: Supabase is the authoritative store. Writes go to Supabase
+ * first and fail hard if Supabase is unavailable. Local JSON is NOT a
+ * production write path — it is a development-only fallback used when
+ * Supabase is not configured.
+ *
+ * Reads prefer Supabase, then fall back to local files (unchanged).
+ */
 
 import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { createHash } from "crypto";
 import { getSupabaseAdmin } from "./supabase";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -70,8 +78,25 @@ export type AnalyticsRecord = {
   receivedAt: string;
 };
 
+/** Result of a store write operation. */
+export type StoreResult = {
+  success: boolean;
+  store: "supabase" | "local";
+  error?: string;
+};
+
 export function newId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * Compute a short content hash for idempotency checking.
+ * Combines email + key content fields so identical submissions within
+ * a time window are detected as duplicates.
+ */
+export function submissionHash(email: string, ...contentParts: string[]): string {
+ const input = [email, ...contentParts].join("|").toLowerCase();
+  return createHash("sha256").update(input).digest("hex").slice(0, 16);
 }
 
 async function loadJson<T>(file: string): Promise<T[]> {
@@ -90,20 +115,103 @@ async function saveJson<T>(file: string, entries: T[]): Promise<void> {
   await writeFile(file, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
 }
 
-async function trySupabaseInsert(table: string, row: Record<string, unknown>): Promise<boolean> {
+/* ------------------------------------------------------------------ */
+/* Supabase write — authoritative in production                       */
+/* ------------------------------------------------------------------ */
+
+async function supabaseInsert(
+  table: string,
+  row: Record<string, unknown>,
+): Promise<StoreResult> {
   const supabase = getSupabaseAdmin();
-  if (!supabase) return false;
+  if (!supabase) {
+    return { success: false, store: "supabase", error: "Supabase not configured" };
+  }
   try {
     const { error } = await supabase.from(table).insert(row);
     if (error) {
       console.error(`[store] Supabase insert into ${table} failed:`, error.message);
+      return { success: false, store: "supabase", error: error.message };
+    }
+    return { success: true, store: "supabase" };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[store] Supabase insert into ${table} threw:`, message);
+    return { success: false, store: "supabase", error: message };
+  }
+}
+
+/**
+ * Update notification_status on a Supabase row after email delivery.
+ * Used by the submission lifecycle in #5.
+ */
+async function supabaseUpdateNotificationStatus(
+  table: string,
+  email: string,
+  hash: string,
+  status: "sent" | "failed",
+): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return;
+  try {
+    await supabase
+      .from(table)
+      .update({ notification_status: status })
+      .eq("email", email)
+      .eq("submission_hash", hash)
+      .order("created_at", { ascending: false })
+      .limit(1);
+  } catch (error) {
+    console.error(`[store] Supabase notification status update for ${table} failed:`, error);
+  }
+}
+
+/**
+ * Check for a recent duplicate submission in Supabase.
+ * Returns true if a matching record exists within the time window.
+ */
+async function supabaseCheckDuplicate(
+  table: string,
+  email: string,
+  hash: string,
+  windowMinutes = 5,
+): Promise<boolean> {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return false;
+  try {
+    const cutoff = new Date(Date.now() - windowMinutes * 60 * 1000).toISOString();
+    const { data, error } = await supabase
+      .from(table)
+      .select("id")
+      .eq("email", email)
+      .eq("submission_hash", hash)
+      .gte("created_at", cutoff)
+      .limit(1);
+    if (error) {
+      console.error(`[store] Supabase duplicate check for ${table} failed:`, error.message);
       return false;
     }
-    return true;
-  } catch (error) {
-    console.error(`[store] Supabase insert into ${table} threw:`, error);
+    return Boolean(data && data.length > 0);
+  } catch {
     return false;
   }
+}
+
+/**
+ * Check for a recent duplicate in local JSON (dev fallback).
+ */
+async function localCheckDuplicate<T extends { email: string; submittedAt: string }>(
+  file: string,
+  email: string,
+  windowMinutes = 5,
+): Promise<boolean> {
+  const entries = await loadJson<T>(file);
+  const cutoff = Date.now() - windowMinutes * 60 * 1000;
+  return entries.some(
+    (e) =>
+      e.email.toLowerCase() === email.toLowerCase() &&
+      new Date(e.submittedAt).getTime() > cutoff,
+  );
 }
 
 async function trySupabaseList<T>(table: string, limit = 500): Promise<T[] | null> {
@@ -130,16 +238,38 @@ async function trySupabaseList<T>(table: string, limit = 500): Promise<T[] | nul
 /* Waitlist                                                            */
 /* ------------------------------------------------------------------ */
 
-export async function saveWaitlistSignup(signup: WaitlistSignup): Promise<void> {
+export async function saveWaitlistSignup(
+  signup: WaitlistSignup,
+  hash?: string,
+): Promise<StoreResult> {
+  const supabase = getSupabaseAdmin();
+
+  if (supabase) {
+    return supabaseInsert("waitlist_entries", {
+      name: signup.name,
+      email: signup.email,
+      company: signup.company,
+      source: "website",
+      submission_hash: hash ?? null,
+    });
+  }
+
+  // Development fallback: local JSON only
   const entries = await loadJson<WaitlistSignup>(waitlistFile);
-  entries.unshift(signup);
-  await saveJson(waitlistFile, entries);
-  await trySupabaseInsert("waitlist_entries", {
-    name: signup.name,
-    email: signup.email,
-    company: signup.company,
-    source: "website",
-  });
+  if (!entries.some((entry) => entry.email.toLowerCase() === signup.email.toLowerCase())) {
+    entries.unshift(signup);
+    await saveJson(waitlistFile, entries);
+  }
+  return { success: true, store: "local" };
+}
+
+export async function isDuplicateWaitlist(email: string, hash: string): Promise<boolean> {
+  if (getSupabaseAdmin()) return supabaseCheckDuplicate("waitlist_entries", email, hash);
+  return localCheckDuplicate<WaitlistSignup>(waitlistFile, email);
+}
+
+export async function markWaitlistNotification(email: string, hash: string, status: "sent" | "failed"): Promise<void> {
+  await supabaseUpdateNotificationStatus("waitlist_entries", email, hash, status);
 }
 
 export async function listWaitlistSignups(): Promise<WaitlistSignup[]> {
@@ -162,17 +292,37 @@ export async function listWaitlistSignups(): Promise<WaitlistSignup[]> {
 /* Contact                                                             */
 /* ------------------------------------------------------------------ */
 
-export async function saveContactRequest(request: ContactRequest): Promise<void> {
+export async function saveContactRequest(
+  request: ContactRequest,
+  hash?: string,
+): Promise<StoreResult> {
+  const supabase = getSupabaseAdmin();
+
+  if (supabase) {
+    return supabaseInsert("contact_messages", {
+      name: request.name,
+      email: request.email,
+      company: request.company,
+      product: request.product,
+      message: request.message,
+      submission_hash: hash ?? null,
+    });
+  }
+
+  // Development fallback: local JSON only
   const entries = await loadJson<ContactRequest>(contactFile);
   entries.unshift(request);
   await saveJson(contactFile, entries);
-  await trySupabaseInsert("contact_messages", {
-    name: request.name,
-    email: request.email,
-    company: request.company,
-    product: request.product,
-    message: request.message,
-  });
+  return { success: true, store: "local" };
+}
+
+export async function isDuplicateContact(email: string, hash: string): Promise<boolean> {
+  if (getSupabaseAdmin()) return supabaseCheckDuplicate("contact_messages", email, hash);
+  return localCheckDuplicate<ContactRequest>(contactFile, email);
+}
+
+export async function markContactNotification(email: string, hash: string, status: "sent" | "failed"): Promise<void> {
+  await supabaseUpdateNotificationStatus("contact_messages", email, hash, status);
 }
 
 export async function listContactRequests(): Promise<ContactRequest[]> {
@@ -198,28 +348,51 @@ export async function listContactRequests(): Promise<ContactRequest[]> {
 /* Demo                                                                */
 /* ------------------------------------------------------------------ */
 
-export async function saveDemoRequest(request: DemoRequest): Promise<void> {
+export async function saveDemoRequest(
+  request: DemoRequest,
+  hash?: string,
+): Promise<StoreResult> {
+  const supabase = getSupabaseAdmin();
+
+  if (supabase) {
+    const result = await supabaseInsert("demo_requests", {
+      name: request.name,
+      email: request.email,
+      company: request.company,
+      role: request.role,
+      company_size: request.companySize,
+      product: request.product,
+      message: request.message,
+      preferred_date: request.preferredDate,
+      submission_hash: hash ?? null,
+    });
+    if (result.success) {
+      // Mirror a unified lead record for funnel attribution.
+      await supabaseInsert("leads", {
+        name: request.name,
+        email: request.email,
+        company: request.company,
+        role: request.role,
+        source: "demo",
+      });
+    }
+    return result;
+  }
+
+  // Development fallback: local JSON only
   const entries = await loadJson<DemoRequest>(demoFile);
   entries.unshift(request);
   await saveJson(demoFile, entries);
-  await trySupabaseInsert("demo_requests", {
-    name: request.name,
-    email: request.email,
-    company: request.company,
-    role: request.role,
-    company_size: request.companySize,
-    product: request.product,
-    message: request.message,
-    preferred_date: request.preferredDate,
-  });
-  // Mirror a unified lead record for funnel attribution.
-  await trySupabaseInsert("leads", {
-    name: request.name,
-    email: request.email,
-    company: request.company,
-    role: request.role,
-    source: "demo",
-  });
+  return { success: true, store: "local" };
+}
+
+export async function isDuplicateDemo(email: string, hash: string): Promise<boolean> {
+  if (getSupabaseAdmin()) return supabaseCheckDuplicate("demo_requests", email, hash);
+  return localCheckDuplicate<DemoRequest>(demoFile, email);
+}
+
+export async function markDemoNotification(email: string, hash: string, status: "sent" | "failed"): Promise<void> {
+  await supabaseUpdateNotificationStatus("demo_requests", email, hash, status);
 }
 
 export async function listDemoRequests(): Promise<DemoRequest[]> {
@@ -249,16 +422,23 @@ export async function listDemoRequests(): Promise<DemoRequest[]> {
 /* Newsletter                                                          */
 /* ------------------------------------------------------------------ */
 
-export async function saveNewsletterSignup(signup: NewsletterSignup): Promise<void> {
+export async function saveNewsletterSignup(signup: NewsletterSignup): Promise<StoreResult> {
+  const supabase = getSupabaseAdmin();
+
+  if (supabase) {
+    return supabaseInsert("newsletter_subscribers", {
+      email: signup.email,
+      source: signup.source,
+    });
+  }
+
+  // Development fallback: local JSON only
   const entries = await loadJson<NewsletterSignup>(newsletterFile);
   if (!entries.some((entry) => entry.email.toLowerCase() === signup.email.toLowerCase())) {
     entries.unshift(signup);
     await saveJson(newsletterFile, entries);
   }
-  await trySupabaseInsert("newsletter_subscribers", {
-    email: signup.email,
-    source: signup.source,
-  });
+  return { success: true, store: "local" };
 }
 
 export async function listNewsletterSignups(): Promise<NewsletterSignup[]> {
@@ -280,20 +460,27 @@ export async function listNewsletterSignups(): Promise<NewsletterSignup[]> {
 /* Analytics                                                           */
 /* ------------------------------------------------------------------ */
 
-export async function saveAnalyticsEvent(record: AnalyticsRecord): Promise<void> {
+export async function saveAnalyticsEvent(record: AnalyticsRecord): Promise<StoreResult> {
+  const supabase = getSupabaseAdmin();
+
+  if (supabase) {
+    return supabaseInsert("analytics_events", {
+      event: record.event,
+      page: record.page,
+      referrer: record.referrer,
+      session_id: record.sessionId,
+      properties: record.properties,
+      utm_source: record.utm.source,
+      utm_medium: record.utm.medium,
+      utm_campaign: record.utm.campaign,
+    });
+  }
+
+  // Development fallback: local JSON only
   const entries = await loadJson<AnalyticsRecord>(analyticsFile);
   entries.unshift(record);
   await saveJson(analyticsFile, entries.slice(0, ANALYTICS_LOCAL_CAP));
-  await trySupabaseInsert("analytics_events", {
-    event: record.event,
-    page: record.page,
-    referrer: record.referrer,
-    session_id: record.sessionId,
-    properties: record.properties,
-    utm_source: record.utm.source,
-    utm_medium: record.utm.medium,
-    utm_campaign: record.utm.campaign,
-  });
+  return { success: true, store: "local" };
 }
 
 export async function listAnalyticsEvents(limit = 500): Promise<AnalyticsRecord[]> {
