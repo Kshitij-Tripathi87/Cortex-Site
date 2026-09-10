@@ -6,7 +6,14 @@ import { apiLimiters } from "../middleware/rateLimit";
 import { getRequestId } from "../middleware/security";
 import { validateBody, validated } from "../middleware/validation";
 import { EMAIL_CONFIG_MISSING, sendDemoNotification } from "../services/email";
-import { newId, saveDemoRequest, submissionHash, isDuplicateDemo, markDemoNotification } from "../services/store";
+import {
+  newId,
+  saveDemoRequest,
+  submissionHash,
+  isDuplicateDemo,
+  markDemoNotification,
+  type StoreResult,
+} from "../services/store";
 
 export const demoRouter = Router();
 
@@ -44,7 +51,7 @@ demoRouter.post("/demo", apiLimiters.write(), validateBody(DemoRequestSchema), a
     return;
   }
 
-  let result;
+  let result: StoreResult;
   try {
     result = await saveDemoRequest(request, hash);
   } catch (error) {
