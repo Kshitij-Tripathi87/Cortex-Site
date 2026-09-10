@@ -1,6 +1,6 @@
 # Cortex Extension Checklist
 
-- [x] Add dedicated product detail routes for Cortex Sense, Cortex Decide, and Cortex Scale.
+- [x] Add dedicated product detail routes for Workflo, Nexus, and ASTRA.
 - [x] Add dedicated case-study detail routes for Northstar Health, Vela Financial, and Aster Works.
 - [x] Add shared detail-page navigation, related-content links, and return paths to the landing page.
 - [x] Enhance global search with grouped categories, auto-complete suggestions, and keyboard-friendly result selection.

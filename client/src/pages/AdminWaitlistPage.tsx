@@ -136,7 +136,7 @@ export default function AdminWaitlistPage() {
           </span>
           <span className="brand-wordmark">CORTEX</span>
         </Link>
-        <span className="admin-header-label">WORKFLO / ADMIN</span>
+        <span className="admin-header-label">CORTEX / ADMIN</span>
         {authenticated && (
           <button type="button" className="admin-signout" onClick={() => void signOut()} disabled={signingOut}>
             {signingOut ? <LoaderCircle size={13} className="animate-spin" /> : <LogOut size={13} />} Sign out
@@ -151,7 +151,7 @@ export default function AdminWaitlistPage() {
             </div>
             <p className="eyebrow">PRIVATE WORKSPACE</p>
             <h1>
-              Workflo
+              Cortex
               <br />
               <em>waitlist.</em>
             </h1>
@@ -191,9 +191,9 @@ export default function AdminWaitlistPage() {
           <section className="admin-dashboard">
             <div className="admin-dashboard-topline">
               <div>
-                <p className="eyebrow">WORKFLO / EARLY ACCESS</p>
+                <p className="eyebrow">CORTEX / EARLY ACCESS</p>
                 <h1>Waitlist submissions.</h1>
-                <p>Every request received through the Workflo early-access form.</p>
+                <p>Every request received through the Cortex early-access form.</p>
               </div>
               <button type="button" className="admin-refresh" onClick={() => void loadEntries()} disabled={loading}>
                 <RefreshCw size={16} className={loading ? "admin-refresh-spin" : ""} /> {loading ? "Refreshing..." : "Refresh"}
@@ -247,7 +247,7 @@ export default function AdminWaitlistPage() {
         <Link href="/products">
           <ArrowLeft size={15} /> Back to products
         </Link>
-        <span>Protected Workflo workspace</span>
+        <span>Protected Cortex workspace</span>
       </footer>
     </div>
   );
