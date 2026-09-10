@@ -1,13 +1,8 @@
 import { lazy, Suspense } from "react";
-import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
-import ErrorBoundary from "./components/ErrorBoundary";
-import ConsentBanner from "./components/ConsentBanner";
-import { ThemeProvider } from "./contexts/ThemeContext";
-import { usePageView } from "./hooks/usePageView";
 import Home from "./pages/Home";
+import NotFound from "./pages/NotFound";
+
 const DetailPage = lazy(() => import("./pages/DetailPage"));
 const SectionPage = lazy(() => import("./pages/SectionPage"));
 const ResourcesPage = lazy(() => import("./pages/ResourcesPage"));
@@ -16,12 +11,10 @@ const PricingPage = lazy(() => import("./pages/PricingPage"));
 const StatusPage = lazy(() => import("./pages/StatusPage"));
 const ContactPage = lazy(() => import("./pages/ContactPage"));
 const DemoPage = lazy(() => import("./pages/DemoPage"));
-const AdminWaitlistPage = lazy(() => import("./pages/AdminWaitlistPage"));
 
 function Router() {
-  usePageView();
   return (
-    <Suspense fallback={<div className="cx-route-loading" role="status">Loading Cortex…</div>}>
+    <Suspense fallback={<div className="route-loading">Loading Cortex…</div>}>
       <Switch>
         <Route path="/" component={Home} />
         <Route path="/products" component={() => <SectionPage type="product" />} />
@@ -44,7 +37,6 @@ function Router() {
         <Route path="/legal" component={() => <LegalPage />} />
         <Route path="/legal/:slug">{(params) => <LegalPage slug={params.slug} />}</Route>
         <Route path="/status" component={StatusPage} />
-        <Route path="/admin/waitlist" component={AdminWaitlistPage} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>
@@ -53,5 +45,5 @@ function Router() {
 }
 
 export default function App() {
-  return <ErrorBoundary><ThemeProvider defaultTheme="light"><TooltipProvider><Toaster position="bottom-right" /><Router /><ConsentBanner /></TooltipProvider></ThemeProvider></ErrorBoundary>;
+  return <Router />;
 }
