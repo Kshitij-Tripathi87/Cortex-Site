@@ -1,236 +1,137 @@
-# Cortex-Site — Deployment Guide
+# Cortex Site — Production Deployment
 
-> **Issue #9**: Render deployment contract / runbook / environment configuration
->
-> This document is the single source of truth for deploying Cortex-Site to
-> Render. It covers the build pipeline, environment contract, health checks,
-> migration, and rollback procedures.
+This runbook is the operator contract for deploying the Cortex marketing site to Render with Supabase, Resend, and the remote Ollama-compatible AI endpoint.
 
----
+## Architecture
 
-## 1. Prerequisites
-
-| Requirement | Details |
-|---|---|
-| **Render account** | [render.com](https://render.com) — Free or Starter plan |
-| **Supabase project** | [supabase.com](https://supabase.com) — for persistence & auth |
-| **Resend account** | [resend.com](https://resend.com) — for email delivery |
-| **Ollama endpoint** | Remote or local instance — for AI chat |
-| **Node.js ≥ 20** | Required by Render's Node runtime |
-| **pnpm** | Package manager (installed automatically by Render) |
-
----
-
-## 2. Environment Variable Contract
-
-All secrets are injected via the **Render dashboard** or `render secret set`.
-Never commit secrets to Git. The `.env.example` file documents every variable.
-
-### Required in production
-
-| Variable | Purpose |
-|---|---|
-| `SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) |
-| `WORKFLO_ADMIN_TOKEN` | Shared secret for admin dashboard login |
-
-### Required for email delivery
-
-| Variable | Purpose |
-|---|---|
-| `RESEND_API_KEY` | Resend API key |
-| `WORKFLO_EMAIL_MODE` | Set to `resend` in production |
-| `CORTEX_CONTACT_TO_EMAIL` | Recipient for contact form notifications |
-| `CORTEX_CONTACT_EMAIL_FROM` | Verified sender address for contact emails |
-| `WORKFLO_WAITLIST_TO_EMAIL` | Recipient for waitlist notifications |
-| `WORKFLO_EMAIL_FROM` | Verified sender address for waitlist emails |
-
-### Required for AI chat
-
-| Variable | Purpose |
-|---|---|
-| `OLLAMA_BASE_URL` | Base URL of the Ollama instance |
-| `OLLAMA_MODEL` | Model name (default: `llama3`) |
-
-### Optional / defaults
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `PORT` | `3000` | Server listen port (set automatically by Render) |
-| `NODE_ENV` | `development` | Set to `production` by Render |
-| `WORKFLO_WAITLIST_FILE` | `data/waitlist.json` | Dev-only local file |
-| `CORTEX_CONTACT_FILE` | `data/contacts.json` | Dev-only local file |
-| `CORTEX_DEMO_FILE` | `data/demos.json` | Dev-only local file |
-| `CORTEX_NEWSLETTER_FILE` | `data/newsletter.json` | Dev-only local file |
-| `CORTEX_ANALYTICS_FILE` | `data/analytics.json` | Dev-only local file |
-
----
-
-## 3. Render Blueprint (`render.yaml`)
-
-The repository includes a `render.yaml` blueprint at the root. To use it:
-
-1. Go to **Render Dashboard → New → Blueprint**.
-2. Select the `Kshitij-Tripathi87/Cortex-Site` repository.
-3. Render will detect `render.yaml` and create the service automatically.
-4. Set each secret in the Render dashboard under **Environment → Environment Variables**.
-
-### Build & Start Commands
-
-```bash
-# Build (executed by Render)
-pnpm install --frozen-lockfile && pnpm build
-
-# Start (executed by Render)
-node dist/index.js
+```text
+Render / Express
+  ├── React/Vite static site
+  ├── Supabase (authoritative persistence + Auth)
+  ├── Resend (transactional notifications)
+  └── Remote Ollama-compatible endpoint (optional runtime AI)
 ```
 
-### Health Check
+Production must not rely on the local JSON files or in-process security state. Those paths exist only for zero-config local development.
 
-Render polls `GET /api/health` every 30 seconds. The endpoint returns:
+## Supabase setup
 
-```json
-{ "status": "ok", "timestamp": "<ISO 8601>" }
-```
+Apply these migrations in order:
 
-If the health check fails 3 consecutive times, Render restarts the service.
-
----
-
-## 4. Startup Configuration Validation
-
-The server validates its environment at startup via `server/config.ts`.
-
-- **In production** (`NODE_ENV=production`): missing required variables cause
-  an immediate process exit with a clear error message.
-- **In development**: missing variables are logged as warnings and the server
-  falls back to local JSON files / mock email.
-
-This prevents silent misconfiguration — if Supabase or the admin token is
-missing in production, the server refuses to start rather than running in a
-broken state.
-
----
-
-## 5. Database Migration Procedure
-
-### Initial Supabase Setup
-
-1. Create a new Supabase project at [supabase.com](https://supabase.com).
-2. Open the SQL Editor in the Supabase dashboard.
-3. Run the migration file:
-
-```bash
+```text
 supabase/migrations/0001_marketing_core.sql
+supabase/migrations/0002_submission_idempotency.sql
+supabase/migrations/0003_admin_security_state.sql
+supabase/migrations/0004_admin_auth.sql
+supabase/migrations/0005_atomic_submission_idempotency.sql
 ```
 
-4. Verify tables were created:
+The latest migration makes lead submission idempotency safe under concurrent requests. Do not skip migration ordering.
 
-```sql
-SELECT tablename FROM pg_tables WHERE schemaname = 'public';
+Create the private administrator in Supabase Auth, then set its UUID in `public.admin_users.auth_user_id` and keep `disabled=false`.
+
+## Render environment contract
+
+Set secrets only in Render's protected environment settings. Do not commit secrets, put them in `render.yaml`, expose them as `VITE_*`, or send them through chat.
+
+Required production variables:
+
+```text
+NODE_ENV=production
+SUPABASE_URL=<protected>
+SUPABASE_SERVICE_ROLE_KEY=<protected>
+RESEND_API_KEY=<protected>
+CORTEX_EMAIL_MODE=resend
+CORTEX_CONTACT_TO_EMAIL=<protected>
+CORTEX_CONTACT_EMAIL_FROM=<protected>
+CORTEX_WAITLIST_TO_EMAIL=<protected>
+CORTEX_EMAIL_FROM=<protected>
+OLLAMA_BASE_URL=<protected>
+OLLAMA_MODEL=<model-name>
 ```
 
-5. (Optional) Seed initial data:
+`render.yaml` contains the non-secret service definition and uses `sync: false` for secret values.
+
+The obsolete `WORKFLO_ADMIN_TOKEN` must not be configured. Admin authentication now uses Supabase Auth plus the server-side session store.
+
+## Render service
+
+The Blueprint defines:
+
+```text
+Build:  pnpm install --frozen-lockfile && pnpm build
+Start: node dist/index.js
+Health: GET /api/health
+```
+
+The server validates its production environment before listening. An invalid/missing Supabase configuration fails startup instead of silently switching production to local storage or memory.
+
+## Health checks
+
+A healthy deployment returns HTTP 200 from `/api/health` and verifies both the application and Supabase dependency.
+
+A dependency failure returns HTTP 503.
+
+Use `/api/status` for the public operational snapshot, including real Ollama provider state after the AI-hardening release.
+
+## Functional smoke test
+
+After the first deploy verify:
+
+```text
+GET  /api/health
+GET  /api/status
+POST /api/contact
+POST /api/demo
+POST /api/waitlist
+POST /api/newsletter
+POST /api/ai/chat
+GET  /admin/waitlist
+```
+
+For the forms, confirm records arrive in the corresponding Supabase tables (`contact_messages`, `demo_requests`, `waitlist_entries`, `newsletter_subscribers`). Confirm contact/demo/waitlist notifications arrive through Resend.
+
+For resilience, verify that a notification failure leaves the persisted lead intact and returns `emailPending` rather than asking the visitor to resubmit. Identical concurrent submissions must not create duplicate records.
+
+For admin, verify Supabase Auth login creates the opaque `cortex_admin_session` cookie and that protected routes return 401 without it.
+
+For AI, verify the configured remote endpoint returns a model response and that the grounded fallback remains available during upstream timeout/error conditions.
+
+## Deployment sequence
+
+1. Apply the five Supabase migrations.
+2. Create and link the admin Auth user.
+3. Populate the protected Render environment variables.
+4. Deploy the `main` branch through the Blueprint.
+5. Wait for `/api/health` to pass.
+6. Run the smoke test above.
+7. Confirm the first form submissions in Supabase and Resend.
+
+## Local development
 
 ```bash
-supabase/seed.sql
-```
-
-### Subsequent Migrations
-
-Future schema changes should be additive migration files under
-`supabase/migrations/` with incrementing numeric prefixes.
-
----
-
-## 6. First Deployment
-
-1. **Connect repository** to Render via Blueprint.
-2. **Set all secrets** in the Render dashboard (see Section 2).
-3. **Trigger deploy** — Render will run `pnpm install && pnpm build`.
-4. **Monitor build logs** for errors.
-5. **Verify health check** — `GET https://<your-service>.onrender.com/api/health`.
-6. **Test form submission** — submit the contact form and verify:
-   - A row appears in Supabase `contact_requests` table.
-   - An email is delivered to `CORTEX_CONTACT_TO_EMAIL`.
-7. **Test admin login** — `POST /api/admin/login` with the admin token.
-8. **Test AI chat** — `POST /api/ai/chat` and verify a response.
-
----
-
-## 7. Rollback Procedure
-
-### Automatic Rollback
-
-Render keeps the last successful deploy. To rollback:
-
-1. Go to **Render Dashboard → cortex-site → Deploys**.
-2. Find the last successful deploy.
-3. Click **Rollback to this deploy**.
-4. Verify the health check passes.
-
-### Manual Rollback via Git
-
-```bash
-# Find the last known-good commit
-git log --oneline -10
-
-# Create a rollback branch
-git checkout -b rollback <good-commit-hash>
-
-# Push and let Render auto-deploy
-git push origin rollback
-```
-
-Then update the Render service to track the `rollback` branch temporarily.
-
----
-
-## 8. Local Development
-
-```bash
-# Clone
-git clone https://github.com/Kshitij-Tripathi87/Cortex-Site.git
-cd Cortex-Site
-
-# Install dependencies
 pnpm install
-
-# Copy environment template
-cp .env.example .env
-# Edit .env with your local values
-
-# Start dev server
+cp .env-example .env
 pnpm dev
 ```
 
-In development mode:
-- Supabase is optional — the server uses local JSON files.
-- Email is in mock mode — messages are logged to console.
-- Ollama defaults to `http://localhost:11434`.
+Local development may run without Supabase and Resend. The store uses local JSON only when Supabase is not configured, and email may run in mock mode. Production does not use those fallbacks.
 
----
+## CI gate
 
-## 9. CI/CD Pipeline
+Every production release must come from a `main` commit with green GitHub Actions checks:
 
-The repository includes a GitHub Actions workflow at `.github/workflows/ci.yml`
-that runs on every push and pull request:
+```text
+pnpm check
+pnpm test
+pnpm build
+pnpm test:e2e
+```
 
-- `pnpm check` — type checking
-- `pnpm test` — unit tests
-- `pnpm test:e2e` — end-to-end tests (Playwright)
+Do not bypass a failing check for a production deploy.
 
-All checks must pass before a PR can be merged to `main`.
+## Rollback
 
----
+Roll back the application to the last successful Render deploy. Database migrations are forward-only; do not remove production tables/columns as part of an application rollback.
 
-## 10. Security Checklist
-
-- [ ] No secrets in Git (verified by `git log -p | grep -i key`)
-- [ ] `SUPABASE_SERVICE_ROLE_KEY` is only in Render environment
-- [ ] `WORKFLO_ADMIN_TOKEN` is a strong random value (`openssl rand -hex 32`)
-- [ ] `RESEND_API_KEY` is only in Render environment
-- [ ] CORS is restricted to production domain in production
-- [ ] Rate limiting is enabled
-- [ ] Helmet security headers are active
-- [ ] Health check endpoint is unauthenticated
+After rollback, re-run `/api/health` and the functional smoke test before reopening traffic.

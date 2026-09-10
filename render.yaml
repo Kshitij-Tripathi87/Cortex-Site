@@ -33,8 +33,6 @@ services:
         sync: false
       - key: CORTEX_EMAIL_FROM
         sync: false
-      - key: WORKFLO_ADMIN_TOKEN
-        sync: false
       - key: OLLAMA_BASE_URL
         sync: false
       - key: OLLAMA_MODEL
