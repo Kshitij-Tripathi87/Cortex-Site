@@ -27,7 +27,7 @@ export default function Home() {
   return (
     <div className="cx-page cx-design-page">
       <SEO path="/" jsonLd={[websiteJsonLd(), organizationJsonLd()]} />
-      <Header overlay />
+      <Header overlay cta={{ label: "Book a demo", href: "/demo" }} />
       <a className="cx-skip" href="#main-content">
         Skip to content
       </a>
@@ -37,6 +37,12 @@ export default function Home() {
           aria-label="Cortex introduction"
         >
           <IntelligenceField className="cx-hero-field" />
+          <div className="cx-hero-interface" aria-hidden="true">
+            <span className="cx-hero-readout"><i /> LIVE FIELD / SIGNAL GRAPH</span>
+            <span className="cx-hero-corner"><i /> WORLD STATE / ACTIVE</span>
+            <span className="cx-hero-corner"><i /> CONTEXT / CONVERGING</span>
+            <span className="cx-hero-scanline" />
+          </div>
           <div className="cx-hero-scrim" aria-hidden="true" />
           <div className="cx-wrap">
             <div className="cx-hero-meta">
@@ -75,8 +81,8 @@ export default function Home() {
               >
                 Explore Cortex <ArrowRight size={15} />
               </Link>
-              <Link href="/contact" className="cx-btn cx-btn-ghost">
-                Talk to Cortex
+              <Link href="/demo" className="cx-btn cx-btn-ghost">
+                Book a demo <ArrowRight size={15} />
               </Link>
             </div>
             <div className="cx-hero-foot">
