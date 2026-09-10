@@ -39,6 +39,7 @@ import { waitlistRouter } from "../../server/routes/waitlist";
 function createApp(router: express.Router) { const app = express(); app.use(express.json()); app.use("/api", router); return app; }
 async function post(baseUrl: string, path: string, body: unknown) { return fetch(`${baseUrl}${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); }
 const contactBody = { name: "Test User", email: "test@example.com", company: "TestCo", message: "This is a sufficiently long test message." };
+const demoBody = { ...contactBody, role: "Engineering", companySize: "11-50" as const };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -99,7 +100,7 @@ describe("form submission reliability", () => {
 
   it("preserves the same failure-safe ordering for demo and waitlist forms", async () => {
     await withHttpServer(createApp(demoRouter), async (baseUrl) => {
-      const response = await post(baseUrl, "/api/demo", { ...contactBody, role: "Engineering", companySize: "11-50" });
+      const response = await post(baseUrl, "/api/demo", demoBody);
       expect(response.status).toBe(200);
       expect(mocks.saveDemoRequest).toHaveBeenCalledOnce(); expect(mocks.sendDemoNotification).toHaveBeenCalledOnce();
       expect(mocks.sendDemoNotification.mock.calls[0][1]).toContain("cortex-demo-");
@@ -109,6 +110,27 @@ describe("form submission reliability", () => {
       expect(response.status).toBe(200);
       expect(mocks.saveWaitlistSignup).toHaveBeenCalledOnce(); expect(mocks.sendWaitlistNotification).toHaveBeenCalledOnce();
       expect(mocks.sendWaitlistNotification.mock.calls[0][1]).toContain("cortex-waitlist-");
+    });
+  });
+
+  it("fails closed when the demo duplicate check is unavailable", async () => {
+    mocks.isDuplicateDemo.mockRejectedValueOnce(new Error("authoritative_store_unavailable"));
+    await withHttpServer(createApp(demoRouter), async (baseUrl) => {
+      const response = await post(baseUrl, "/api/demo", demoBody);
+      expect(response.status).toBe(503);
+      expect((await response.json()).error).toContain("temporarily unavailable");
+      expect(mocks.saveDemoRequest).not.toHaveBeenCalled();
+      expect(mocks.sendDemoNotification).not.toHaveBeenCalled();
+    });
+  });
+
+  it("fails closed when demo persistence throws and does not send email", async () => {
+    mocks.saveDemoRequest.mockRejectedValueOnce(new Error("database unavailable"));
+    await withHttpServer(createApp(demoRouter), async (baseUrl) => {
+      const response = await post(baseUrl, "/api/demo", demoBody);
+      expect(response.status).toBe(503);
+      expect((await response.json()).error).toContain("temporarily unavailable");
+      expect(mocks.sendDemoNotification).not.toHaveBeenCalled();
     });
   });
 });
