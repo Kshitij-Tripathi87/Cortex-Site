@@ -33,7 +33,7 @@ export function renderRouteHtml({ staticPath, pathname }: { staticPath: string; 
   html = replaceMeta(html, "name", "twitter:title", meta.title);
   html = replaceMeta(html, "name", "twitter:description", meta.description);
   html = replaceMeta(html, "name", "twitter:image", ogImage);
-  html = html.replace(/<script\s+type=["']application\/ld\+json["'][^>]*>.*?<\/script>/gis, "");
+  html = html.replace(/<script\s+type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi, "");
   const jsonLd = structuredData(pathname, meta.title, meta.description, url).map((entry) => `<script type="application/ld+json">${safeJson(entry)}</script>`).join("");
   html = html.replace("</head>", `${jsonLd}\n</head>`);
   return html.replace(/<div id=["']root["']><\/div>/i, `<noscript>${createNoScriptSummary(pathname, meta.title, meta.description)}</noscript>\n<div id="root"></div>`);
