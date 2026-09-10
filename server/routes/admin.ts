@@ -1,6 +1,14 @@
-/* Silverline Systems reminder: admin access is server-side identity. The browser
- * holds an opaque httpOnly session cookie — never the credential — that the
- * server can invalidate at any time. (Supabase Auth migration: backend phase.)
+/*
+ * Issue #6: Distributed security state.
+ *
+ * Admin sessions and login attempts now use Supabase-backed storage
+ * via securityStore.ts. This means:
+ * - Sessions survive Render restarts (durable)
+ * - Sessions can be revoked from the database (revocable)
+ * - Login attempt tracking is shared across instances (distributed)
+ *
+ * The shared admin token (WORKFLO_ADMIN_TOKEN) remains the auth credential.
+ * Migration to Supabase Auth is tracked in Issue #7.
  */
 
 import { Router } from "express";
@@ -15,6 +23,17 @@ import {
   listNewsletterSignups,
   listWaitlistSignups,
 } from "../services/store";
+import {
+  createSession,
+  readSession,
+  updateSessionExpiry,
+  deleteSession,
+  pruneExpiredSessions,
+  readLoginAttempts,
+  writeLoginAttempts,
+  deleteLoginAttempts,
+  pruneLoginAttempts,
+} from "../services/securityStore";
 
 export const adminRouter = Router();
 
@@ -24,24 +43,6 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours, refreshed on activity
 const LOGIN_WINDOW_MS = 10 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 8;
 const LOGIN_LOCKOUT_MS = 15 * 60 * 1000;
-
-type AdminSession = { expiresAt: number };
-type LoginAttemptState = { count: number; firstAttemptAt: number; lockedUntil: number };
-
-const adminSessions = new Map<string, AdminSession>();
-const loginAttempts = new Map<string, LoginAttemptState>();
-
-function pruneExpiredAuthState() {
-  const now = Date.now();
-  adminSessions.forEach((session, id) => {
-    if (session.expiresAt <= now) adminSessions.delete(id);
-  });
-  loginAttempts.forEach((state, ip) => {
-    if (state.lockedUntil <= now && state.firstAttemptAt + LOGIN_WINDOW_MS <= now) loginAttempts.delete(ip);
-  });
-}
-const pruneInterval = setInterval(pruneExpiredAuthState, 15 * 60 * 1000);
-pruneInterval.unref();
 
 function parseCookies(header: string | undefined): Record<string, string> {
   const cookies: Record<string, string> = {};
@@ -79,25 +80,8 @@ function clearAdminSessionCookie(res: Response) {
   res.setHeader("Set-Cookie", attributes.join("; "));
 }
 
-function createAdminSession(): string {
-  const sessionId = randomBytes(32).toString("hex");
-  adminSessions.set(sessionId, { expiresAt: Date.now() + SESSION_TTL_MS });
-  return sessionId;
-}
-
 function readAdminSessionId(req: Request): string | undefined {
   return parseCookies(req.get("cookie"))[ADMIN_SESSION_COOKIE];
-}
-
-function isAdminSessionValid(sessionId: string | undefined): boolean {
-  if (!sessionId) return false;
-  const session = adminSessions.get(sessionId);
-  if (!session) return false;
-  if (session.expiresAt <= Date.now()) {
-    adminSessions.delete(sessionId);
-    return false;
-  }
-  return true;
 }
 
 function timingSafeStringsEqual(a: string, b: string): boolean {
@@ -110,45 +94,12 @@ function getClientKey(req: Request): string {
   return req.ip || req.socket.remoteAddress || "unknown";
 }
 
-function checkLoginRateLimit(clientKey: string): { allowed: boolean; retryAfterSeconds?: number } {
-  const now = Date.now();
-  const state = loginAttempts.get(clientKey);
-  if (!state) return { allowed: true };
-  if (state.lockedUntil > now) {
-    return { allowed: false, retryAfterSeconds: Math.ceil((state.lockedUntil - now) / 1000) };
-  }
-  if (now - state.firstAttemptAt > LOGIN_WINDOW_MS) {
-    loginAttempts.delete(clientKey);
-    return { allowed: true };
-  }
-  return { allowed: true };
-}
-
-function recordFailedLogin(clientKey: string) {
-  const now = Date.now();
-  const state = loginAttempts.get(clientKey);
-  if (!state || now - state.firstAttemptAt > LOGIN_WINDOW_MS) {
-    loginAttempts.set(clientKey, { count: 1, firstAttemptAt: now, lockedUntil: 0 });
-    return;
-  }
-  state.count += 1;
-  if (state.count >= LOGIN_MAX_ATTEMPTS) {
-    state.lockedUntil = now + LOGIN_LOCKOUT_MS;
-  }
-}
-
-/** Session gate for admin reads. Refreshes the cookie on every valid call. */
-function requireAdmin(req: Request, res: Response): boolean {
-  const sessionId = readAdminSessionId(req);
-  if (!isAdminSessionValid(sessionId)) {
-    res.status(401).json({ error: "Unauthorized." });
-    return false;
-  }
-  const session = adminSessions.get(sessionId!);
-  if (session) session.expiresAt = Date.now() + SESSION_TTL_MS;
-  setAdminSessionCookie(res, sessionId!, SESSION_TTL_MS);
-  return true;
-}
+// Prune expired sessions and login attempts periodically
+const pruneInterval = setInterval(() => {
+  void pruneExpiredSessions();
+  void pruneLoginAttempts();
+}, 15 * 60 * 1000);
+pruneInterval.unref();
 
 adminRouter.post("/admin/login", validateBody(AdminLoginSchema), async (req, res) => {
   const configuredToken = process.env.WORKFLO_ADMIN_TOKEN?.trim();
@@ -158,43 +109,93 @@ adminRouter.post("/admin/login", validateBody(AdminLoginSchema), async (req, res
   }
 
   const clientKey = getClientKey(req);
-  const rateLimit = checkLoginRateLimit(clientKey);
-  if (!rateLimit.allowed) {
-    res.setHeader("Retry-After", String(rateLimit.retryAfterSeconds ?? 60));
-    res.status(429).json({ error: "Too many attempts. Please try again later." });
-    return;
+
+  // Check login rate limit (now distributed)
+  const attemptState = await readLoginAttempts(clientKey);
+  if (attemptState) {
+    const now = Date.now();
+    if (attemptState.lockedUntil > now) {
+      res.setHeader("Retry-After", String(Math.ceil((attemptState.lockedUntil - now) / 1000)));
+      res.status(429).json({ error: "Too many attempts. Please try again later." });
+      return;
+    }
+    if (now - attemptState.firstAttemptAt > LOGIN_WINDOW_MS) {
+      await deleteLoginAttempts(clientKey);
+    }
   }
 
   const { token } = validated<AdminLoginInput>(req);
   if (!timingSafeStringsEqual(token, configuredToken)) {
-    recordFailedLogin(clientKey);
+    // Record failed login (now distributed)
+    const now = Date.now();
+    const existing = await readLoginAttempts(clientKey);
+    if (!existing || now - existing.firstAttemptAt > LOGIN_WINDOW_MS) {
+      await writeLoginAttempts(clientKey, { count: 1, firstAttemptAt: now, lockedUntil: 0 });
+    } else {
+      existing.count += 1;
+      if (existing.count >= LOGIN_MAX_ATTEMPTS) {
+        existing.lockedUntil = now + LOGIN_LOCKOUT_MS;
+      }
+      await writeLoginAttempts(clientKey, existing);
+    }
     res.status(401).json({ error: "Invalid admin token." });
     return;
   }
 
-  loginAttempts.delete(clientKey);
-  const sessionId = createAdminSession();
+  // Success: clear login attempts and create session
+  await deleteLoginAttempts(clientKey);
+  const sessionId = randomBytes(32).toString("hex");
+  const expiresAt = Date.now() + SESSION_TTL_MS;
+  await createSession(sessionId, expiresAt, getClientKey(req), req.get("user-agent") ?? "");
   setAdminSessionCookie(res, sessionId, SESSION_TTL_MS);
   res.status(200).json({ ok: true });
 });
 
-adminRouter.post("/admin/logout", (req, res) => {
+adminRouter.post("/admin/logout", async (req, res) => {
   const sessionId = readAdminSessionId(req);
-  if (sessionId) adminSessions.delete(sessionId);
+  if (sessionId) await deleteSession(sessionId);
   clearAdminSessionCookie(res);
   res.status(200).json({ ok: true });
 });
 
-adminRouter.get("/admin/session", (req, res) => {
+adminRouter.get("/admin/session", async (req, res) => {
   const sessionId = readAdminSessionId(req);
-  const valid = isAdminSessionValid(sessionId);
-  if (valid) {
-    const session = adminSessions.get(sessionId!);
-    if (session) session.expiresAt = Date.now() + SESSION_TTL_MS;
-    setAdminSessionCookie(res, sessionId!, SESSION_TTL_MS);
+  if (!sessionId) {
+    res.status(200).json({ authenticated: false });
+    return;
   }
-  res.status(200).json({ authenticated: valid });
+  const session = await readSession(sessionId);
+  if (!session || session.expiresAt <= Date.now()) {
+    if (session) await deleteSession(sessionId);
+    res.status(200).json({ authenticated: false });
+    return;
+  }
+  // Refresh session
+  const newExpiry = Date.now() + SESSION_TTL_MS;
+  await updateSessionExpiry(sessionId, newExpiry);
+  setAdminSessionCookie(res, sessionId, SESSION_TTL_MS);
+  res.status(200).json({ authenticated: true });
 });
+
+/** Session gate for admin reads. Refreshes the cookie on every valid call. */
+async function requireAdmin(req: Request, res: Response): Promise<boolean> {
+  const sessionId = readAdminSessionId(req);
+  if (!sessionId) {
+    res.status(401).json({ error: "Unauthorized." });
+    return false;
+  }
+  const session = await readSession(sessionId);
+  if (!session || session.expiresAt <= Date.now()) {
+    if (session) await deleteSession(sessionId);
+    res.status(401).json({ error: "Unauthorized." });
+    return false;
+  }
+  // Refresh session
+  const newExpiry = Date.now() + SESSION_TTL_MS;
+  await updateSessionExpiry(sessionId, newExpiry);
+  setAdminSessionCookie(res, sessionId, SESSION_TTL_MS);
+  return true;
+}
 
 async function guardedList(
   req: Request,
@@ -202,7 +203,7 @@ async function guardedList(
   label: string,
   loader: () => Promise<unknown[]>,
 ) {
-  if (!requireAdmin(req, res)) return;
+  if (!(await requireAdmin(req, res))) return;
   try {
     const entries = await loader();
     res.status(200).json({ entries, total: entries.length });
@@ -221,8 +222,8 @@ adminRouter.get("/admin/newsletter", (req, res) =>
 
 /** Recent analytics events plus funnel aggregates for the future dashboard. */
 adminRouter.get("/admin/analytics", (req, res) => {
-  if (!requireAdmin(req, res)) return;
   void (async () => {
+    if (!(await requireAdmin(req, res))) return;
     try {
       const limit = Math.min(1000, Math.max(1, Number(req.query.limit) || 500));
       const events = await listAnalyticsEvents(limit);
