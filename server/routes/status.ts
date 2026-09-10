@@ -1,9 +1,14 @@
-/* Silverline Systems reminder: status is a promise kept in public. Report what the
- * marketing site depends on — nothing more, nothing less. */
+/*
+ * Issue #8: Harden Ollama proxy.
+ *
+ * Status endpoint now reports real Ollama provider health (success rate,
+ * latency, consecutive failures) instead of just "is the URL configured."
+ */
 
 import { Router } from "express";
 import { apiLimiters } from "../middleware/rateLimit";
 import { isSupabaseEnabled } from "../services/supabase";
+import { getOllamaHealth } from "../services/ollamaHealth";
 
 export const statusRouter = Router();
 
@@ -20,6 +25,20 @@ statusRouter.get("/status", apiLimiters.read(), (_req, res) => {
   const emailConfigured =
     (process.env.WORKFLO_EMAIL_MODE || "resend").trim().toLowerCase() === "mock" ||
     Boolean(process.env.RESEND_API_KEY?.trim());
+  const ollamaHealth = getOllamaHealth();
+
+  // Determine AI Core status from real health data
+  let aiCoreStatus: string = "degraded";
+  if (!ollamaHealth.configured) {
+    aiCoreStatus = "degraded";
+  } else if (ollamaHealth.consecutiveFailures >= 3) {
+    aiCoreStatus = "down";
+  } else if (ollamaHealth.consecutiveFailures > 0 || ollamaHealth.successRate < 0.8) {
+    aiCoreStatus = "degraded";
+  } else {
+    aiCoreStatus = "operational";
+  }
+
   res.json({
     ok: true,
     status: "operational",
@@ -31,8 +50,16 @@ statusRouter.get("/status", apiLimiters.read(), (_req, res) => {
     checks: {
       website: "operational",
       intakeForms: emailConfigured ? "operational" : "degraded",
-      aiCore: process.env.OLLAMA_BASE_URL ? "operational" : "degraded",
+      aiCore: aiCoreStatus,
       database: isSupabaseEnabled() ? "operational" : "local-fallback",
     },
+    aiCoreDetail: ollamaHealth.configured ? {
+      model: ollamaHealth.model,
+      successRate: ollamaHealth.successRate,
+      consecutiveFailures: ollamaHealth.consecutiveFailures,
+      avgLatencyMs: ollamaHealth.avgLatencyMs,
+      lastError: ollamaHealth.lastError,
+      lastErrorAt: ollamaHealth.lastErrorAt,
+    } : null,
   });
 });
