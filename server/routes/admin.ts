@@ -1,5 +1,6 @@
 /* Private Cortex admin surface: Supabase Auth identity + opaque server session. */
 
+import { randomBytes } from "crypto";
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { z } from "zod";
@@ -41,15 +42,10 @@ function parseCookies(header: string | undefined): Record<string, string> {
   return cookies;
 }
 
-function readAdminSessionId(req: Request): string | undefined {
-  return parseCookies(req.get("cookie"))[ADMIN_SESSION_COOKIE];
-}
+function readAdminSessionId(req: Request): string | undefined { return parseCookies(req.get("cookie"))[ADMIN_SESSION_COOKIE]; }
 
 function setAdminSessionCookie(res: Response, sessionId: string, maxAgeMs: number): void {
-  const attributes = [
-    `${ADMIN_SESSION_COOKIE}=${encodeURIComponent(sessionId)}`,
-    "HttpOnly", "Path=/", "SameSite=Strict", `Max-Age=${Math.floor(maxAgeMs / 1000)}`,
-  ];
+  const attributes = [`${ADMIN_SESSION_COOKIE}=${encodeURIComponent(sessionId)}`, "HttpOnly", "Path=/", "SameSite=Strict", `Max-Age=${Math.floor(maxAgeMs / 1000)}`];
   if (isProduction) attributes.push("Secure");
   res.setHeader("Set-Cookie", attributes.join("; "));
 }
@@ -66,18 +62,12 @@ const pruneInterval = setInterval(() => {
 pruneInterval.unref();
 
 adminRouter.post("/admin/auth/login", apiLimiters.adminLogin(), validateBody(SupabaseLoginSchema), async (req, res) => {
-  if (!isSupabaseAuthEnabled()) {
-    res.status(503).json({ error: "Authentication service is not configured." });
-    return;
-  }
+  if (!isSupabaseAuthEnabled()) { res.status(503).json({ error: "Authentication service is not configured." }); return; }
   try {
     const { email, password } = validated<SupabaseLoginInput>(req);
     const admin = await loginWithSupabaseAuth(email, password);
-    if (!admin) {
-      res.status(401).json({ error: "Invalid credentials." });
-      return;
-    }
-    const sessionId = cryptoRandomSessionId();
+    if (!admin) { res.status(401).json({ error: "Invalid credentials." }); return; }
+    const sessionId = randomBytes(32).toString("hex");
     await createSession(sessionId, Date.now() + SESSION_TTL_MS, req.ip || req.socket.remoteAddress || "unknown", req.get("user-agent") ?? "");
     setAdminSessionCookie(res, sessionId, SESSION_TTL_MS);
     res.status(200).json({ ok: true, user: { email: admin.email } });
@@ -86,10 +76,6 @@ adminRouter.post("/admin/auth/login", apiLimiters.adminLogin(), validateBody(Sup
     res.status(503).json({ error: "Authentication service is temporarily unavailable." });
   }
 });
-
-function cryptoRandomSessionId(): string {
-  return Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
-}
 
 adminRouter.post("/admin/logout", async (req, res) => {
   try {
