@@ -14,7 +14,9 @@ export type RateLimitOptions = { max: number; windowMs: number; name: string };
 const localBuckets = new Map<string, LocalBucket>();
 const pruneInterval = setInterval(() => {
   const now = Date.now();
-  for (const [key, bucket] of localBuckets) if (bucket.resetAt <= now) localBuckets.delete(key);
+  localBuckets.forEach((bucket, key) => {
+    if (bucket.resetAt <= now) localBuckets.delete(key);
+  });
   if (isDistributedRateLimiting()) void pruneRateLimitBuckets().catch((error) => console.error("[rateLimit] prune failed:", error));
 }, 60_000);
 pruneInterval.unref();
@@ -30,19 +32,21 @@ function rateLimitLocal({ max, windowMs, name }: RateLimitOptions) {
     const now = Date.now();
     const key = `${name}:${clientKey(req)}`;
     const current = localBuckets.get(key);
-    const bucket = !current || current.resetAt <= now
-      ? { count: 1, resetAt: now + windowMs }
-      : current.count >= max
-        ? current
-        : { count: current.count + 1, resetAt: current.resetAt };
-    localBuckets.set(key, bucket);
-    applyHeaders(res, max, bucket.count, bucket.resetAt);
-    if (bucket.count > max - 1 && current && current.resetAt > now && current.count >= max) {
-      const retryAfter = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
-      res.setHeader("Retry-After", String(retryAfter));
+    if (!current || current.resetAt <= now) {
+      const bucket = { count: 1, resetAt: now + windowMs };
+      localBuckets.set(key, bucket);
+      applyHeaders(res, max, bucket.count, bucket.resetAt);
+      next();
+      return;
+    }
+    if (current.count >= max) {
+      applyHeaders(res, max, current.count, current.resetAt);
+      res.setHeader("Retry-After", String(Math.max(1, Math.ceil((current.resetAt - now) / 1000))));
       res.status(429).json({ error: "Too many requests. Please try again shortly." });
       return;
     }
+    current.count += 1;
+    applyHeaders(res, max, current.count, current.resetAt);
     next();
   };
 }
@@ -54,8 +58,7 @@ function rateLimitDistributed({ max, windowMs, name }: RateLimitOptions) {
       const bucket = await consumeRateLimitBucket(key, max, windowMs);
       applyHeaders(res, max, bucket.count, bucket.resetAt);
       if (!bucket.allowed) {
-        const retryAfter = Math.max(1, Math.ceil((bucket.resetAt - Date.now()) / 1000));
-        res.setHeader("Retry-After", String(retryAfter));
+        res.setHeader("Retry-After", String(Math.max(1, Math.ceil((bucket.resetAt - Date.now()) / 1000))));
         res.status(429).json({ error: "Too many requests. Please try again shortly." });
         return;
       }
