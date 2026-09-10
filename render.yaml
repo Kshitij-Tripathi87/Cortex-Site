@@ -1,9 +1,6 @@
 # Render Blueprint — Cortex-Site
 # https://render.com/docs/blueprint-spec
-# Issue #9: Render deployment contract
-#
-# Secrets are NEVER stored in this file.
-# They are injected via the Render dashboard or `render secret set`.
+# Secrets are NEVER stored in this file; set them in Render environment settings.
 
 services:
   - type: web
@@ -20,23 +17,21 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 3000
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: RESEND_API_KEY
         sync: false
-      - key: WORKFLO_EMAIL_MODE
+      - key: CORTEX_EMAIL_MODE
         value: resend
       - key: CORTEX_CONTACT_TO_EMAIL
         sync: false
       - key: CORTEX_CONTACT_EMAIL_FROM
         sync: false
-      - key: WORKFLO_WAITLIST_TO_EMAIL
+      - key: CORTEX_WAITLIST_TO_EMAIL
         sync: false
-      - key: WORKFLO_EMAIL_FROM
+      - key: CORTEX_EMAIL_FROM
         sync: false
       - key: WORKFLO_ADMIN_TOKEN
         sync: false
