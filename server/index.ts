@@ -1,6 +1,4 @@
-/* Silverline Systems reminder: the marketing backend is an intake desk, not a
- * product API. Contact, demo, waitlist, newsletter, AI chat, analytics, and
- * content — each route owns its validation, limits, and storage. */
+/* Cortex marketing backend — intake desk for the public site. */
 
 import express from "express";
 import { createServer } from "http";
@@ -8,6 +6,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { resolveRedirect } from "../shared/site";
 import { jsonErrorHandler, requestId, securityHeaders } from "./middleware/security";
+import { loadConfig } from "./config";
+import { getSupabaseAdmin } from "./services/supabase";
 import { adminRouter } from "./routes/admin";
 import { aiRouter } from "./routes/ai";
 import { analyticsRouter } from "./routes/analytics";
@@ -20,8 +20,8 @@ import { waitlistRouter } from "./routes/waitlist";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-const port = Number(process.env.PORT) || 3000;
+const config = loadConfig();
+const port = config.port;
 const staticPath = path.resolve(__dirname, "public");
 
 process.on("unhandledRejection", (reason) => {
@@ -40,8 +40,35 @@ app.use(express.json({ limit: "100kb" }));
 app.use(jsonErrorHandler);
 
 // ---------------------------------------------------------------------------
-// Legacy → canonical redirects (301). Mirrors shared/site.ts REDIRECTS so
-// old links and indexed URLs keep working and pass SEO value forward.
+// Render health check. In production, verify the authoritative datastore is
+// reachable so a newly deployed unhealthy instance never receives traffic.
+// ---------------------------------------------------------------------------
+app.get("/api/health", async (_req, res) => {
+  if (!config.isProduction) {
+    res.status(200).json({ status: "ok", timestamp: new Date().toISOString(), checks: { app: "ok" } });
+    return;
+  }
+
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
+    res.status(503).json({ status: "degraded", timestamp: new Date().toISOString(), checks: { app: "ok", supabase: "not_configured" } });
+    return;
+  }
+
+  try {
+    const { error } = await supabase.from("site_settings").select("key").limit(1);
+    if (error) {
+      res.status(503).json({ status: "degraded", timestamp: new Date().toISOString(), checks: { app: "ok", supabase: "unhealthy" } });
+      return;
+    }
+    res.status(200).json({ status: "ok", timestamp: new Date().toISOString(), checks: { app: "ok", supabase: "ok" } });
+  } catch {
+    res.status(503).json({ status: "degraded", timestamp: new Date().toISOString(), checks: { app: "ok", supabase: "unhealthy" } });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Legacy → canonical redirects (301).
 // ---------------------------------------------------------------------------
 app.use((req, res, next) => {
   if (req.method !== "GET" && req.method !== "HEAD") {
