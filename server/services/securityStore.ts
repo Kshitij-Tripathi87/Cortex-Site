@@ -12,10 +12,7 @@ const localBuckets = new Map<string, RateLimitBucket>();
 
 export async function createSession(sessionId: string, expiresAt: number, ip: string, userAgent: string): Promise<void> {
   const supabase = getSupabaseAdmin();
-  if (!supabase) {
-    localSessions.set(sessionId, { sessionId, expiresAt, ip, userAgent });
-    return;
-  }
+  if (!supabase) { localSessions.set(sessionId, { sessionId, expiresAt, ip, userAgent }); return; }
   const { error } = await supabase.from("admin_sessions").insert({ session_id: sessionId, expires_at: new Date(expiresAt).toISOString(), ip, user_agent: userAgent });
   if (error) throw new Error(`security session create failed: ${error.message}`);
 }
@@ -31,11 +28,7 @@ export async function readSession(sessionId: string): Promise<AdminSessionRecord
 
 export async function updateSessionExpiry(sessionId: string, expiresAt: number): Promise<void> {
   const supabase = getSupabaseAdmin();
-  if (!supabase) {
-    const session = localSessions.get(sessionId);
-    if (session) session.expiresAt = expiresAt;
-    return;
-  }
+  if (!supabase) { const session = localSessions.get(sessionId); if (session) session.expiresAt = expiresAt; return; }
   const { error } = await supabase.from("admin_sessions").update({ expires_at: new Date(expiresAt).toISOString() }).eq("session_id", sessionId);
   if (error) throw new Error(`security session update failed: ${error.message}`);
 }
@@ -49,11 +42,7 @@ export async function deleteSession(sessionId: string): Promise<void> {
 
 export async function pruneExpiredSessions(): Promise<void> {
   const supabase = getSupabaseAdmin();
-  if (!supabase) {
-    const now = Date.now();
-    for (const [id, session] of localSessions) if (session.expiresAt <= now) localSessions.delete(id);
-    return;
-  }
+  if (!supabase) { const now = Date.now(); localSessions.forEach((s, id) => { if (s.expiresAt <= now) localSessions.delete(id); }); return; }
   const { error } = await supabase.from("admin_sessions").delete().lt("expires_at", new Date().toISOString());
   if (error) throw new Error(`security session prune failed: ${error.message}`);
 }
@@ -99,11 +88,7 @@ export async function deleteLoginAttempts(ip: string): Promise<void> {
 
 export async function pruneLoginAttempts(): Promise<void> {
   const supabase = getSupabaseAdmin();
-  if (!supabase) {
-    const now = Date.now();
-    for (const [ip, state] of localLoginAttempts) if (state.lockedUntil <= now && state.firstAttemptAt + 10 * 60 * 1000 <= now) localLoginAttempts.delete(ip);
-    return;
-  }
+  if (!supabase) { const now = Date.now(); localLoginAttempts.forEach((s, ip) => { if (s.lockedUntil <= now && s.firstAttemptAt + 10 * 60 * 1000 <= now) localLoginAttempts.delete(ip); }); return; }
   const { error } = await supabase.from("admin_login_attempts").delete().lt("locked_until", new Date(Date.now() - 30 * 60 * 1000).toISOString());
   if (error) throw new Error(`login attempt prune failed: ${error.message}`);
 }
@@ -125,11 +110,7 @@ export async function consumeRateLimitBucket(key: string, max: number, windowMs:
 
 export async function pruneRateLimitBuckets(): Promise<void> {
   const supabase = getSupabaseAdmin();
-  if (!supabase) {
-    const now = Date.now();
-    for (const [key, bucket] of localBuckets) if (bucket.resetAt <= now) localBuckets.delete(key);
-    return;
-  }
+  if (!supabase) { const now = Date.now(); localBuckets.forEach((b, key) => { if (b.resetAt <= now) localBuckets.delete(key); }); return; }
   const { error } = await supabase.from("rate_limit_buckets").delete().lt("reset_at", new Date().toISOString());
   if (error) throw new Error(`rate limit prune failed: ${error.message}`);
 }
