@@ -1,4 +1,4 @@
-/* Issue #5: waitlist submissions persist before notification; retries are idempotent. */
+/* Issue #5/#20: waitlist submissions persist first; DB enforces atomic idempotency. */
 
 import { Router } from "express";
 import { WaitlistSchema, type WaitlistInput } from "../../shared/schemas";
@@ -8,41 +8,23 @@ import { EMAIL_CONFIG_MISSING, sendWaitlistNotification } from "../services/emai
 import { newId, saveWaitlistSignup, submissionHash, isDuplicateWaitlist, markWaitlistNotification } from "../services/store";
 
 export const waitlistRouter = Router();
+function isUniqueConflict(error: string | undefined): boolean { return Boolean(error && (error.includes("23505") || error.toLowerCase().includes("duplicate key"))); }
 
 waitlistRouter.post("/waitlist", apiLimiters.write(), validateBody(WaitlistSchema), async (req, res) => {
   const input = validated<WaitlistInput>(req);
-  const signup = {
-    id: newId("wf"),
-    name: input.name,
-    email: input.email,
-    company: input.company ?? "",
-    submittedAt: new Date().toISOString(),
-  };
+  const signup = { id: newId("wf"), name: input.name, email: input.email, company: input.company ?? "", submittedAt: new Date().toISOString() };
   const hash = submissionHash(input.email, input.name, input.company ?? "");
-
-  if (await isDuplicateWaitlist(input.email, hash)) {
-    res.status(200).json({ ok: true, duplicate: true });
-    return;
-  }
-
+  if (await isDuplicateWaitlist(input.email, hash)) { res.status(200).json({ ok: true, duplicate: true }); return; }
   const result = await saveWaitlistSignup(signup, hash);
-  if (!result.success) {
-    console.error("[waitlist] Persistence failed — notification suppressed:", result.error);
-    res.status(502).json({ error: "We could not save your request. Please try again shortly." });
-    return;
-  }
-
+  if (!result.success && !isUniqueConflict(result.error)) { console.error("[waitlist] Persistence failed — notification suppressed:", result.error); res.status(502).json({ error: "We could not save your request. Please try again shortly." }); return; }
   try {
     await sendWaitlistNotification(signup, `cortex-waitlist-${hash}`);
     await markWaitlistNotification(input.email, hash, "sent");
-    res.status(200).json({ ok: true });
+    res.status(200).json({ ok: true, duplicate: !result.success });
   } catch (error) {
-    if (error instanceof Error && error.message === EMAIL_CONFIG_MISSING) {
-      console.warn("[waitlist] Notification configuration missing; submission remains persisted.");
-    } else {
-      console.error("[waitlist] Notification delivery failed; submission remains persisted:", error);
-    }
+    if (error instanceof Error && error.message === EMAIL_CONFIG_MISSING) console.warn("[waitlist] Notification config missing; submission remains persisted.");
+    else console.error("[waitlist] Notification delivery failed; submission remains persisted:", error);
     await markWaitlistNotification(input.email, hash, "failed");
-    res.status(200).json({ ok: true, emailPending: true });
+    res.status(200).json({ ok: true, emailPending: true, duplicate: !result.success });
   }
 });
