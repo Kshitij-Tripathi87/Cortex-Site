@@ -2,9 +2,30 @@ import { SITE_NAME, SITE_ROUTES, SITE_URL, canonicalUrl, routeMeta } from "../sh
 
 function escapeHtml(value: string): string { return value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character] || character)); }
 function safeJson(value: unknown): string { return JSON.stringify(value).replace(/[<>&]/g, (character) => ({ "<": "\\u003c", ">": "\\u003e", "&": "\\u0026" }[character] || character)); }
+function escapeRegExp(value: string): string { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+/**
+ * Sets a `<meta>` tag, matching on its identifying attribute
+ * (`name="description"`, `property="og:title"`) and inserting it before
+ * `</head>` when the template does not carry one.
+ *
+ * Matching on the value matters. The previous version replaced "the first tag
+ * with a `name` attribute", so each call overwrote <meta name="viewport"> and
+ * left every route shipping the template's default description.
+ */
 function replaceMeta(html: string, attribute: string, value: string, content: string): string {
-  const pattern = new RegExp(`<meta\\s+${attribute}=["'][^"']+["']\\s+content=["'][^"']*["']\\s*/?>`, "i");
-  return html.replace(pattern, `<meta ${attribute}="${escapeHtml(value)}" content="${escapeHtml(content)}" />`);
+  const tag = `<meta ${attribute}="${escapeHtml(value)}" content="${escapeHtml(content)}" />`;
+  const pattern = new RegExp(`<meta\\s+${attribute}=["']${escapeRegExp(value)}["'][^>]*>`, "i");
+  if (pattern.test(html)) return html.replace(pattern, tag);
+  return html.replace("</head>", `    ${tag}\n  </head>`);
+}
+
+/** Same contract as `replaceMeta` for `<link rel="...">` tags. */
+function replaceLink(html: string, rel: string, href: string): string {
+  const tag = `<link rel="${rel}" href="${escapeHtml(href)}" />`;
+  const pattern = new RegExp(`<link\\s+rel=["']${escapeRegExp(rel)}["'][^>]*>`, "i");
+  if (pattern.test(html)) return html.replace(pattern, tag);
+  return html.replace("</head>", `    ${tag}\n  </head>`);
 }
 function structuredData(pathname: string, title: string, description: string, url: string) {
   const page = { "@context": "https://schema.org", "@type": "WebPage", name: title, description, url, isPartOf: { "@type": "WebSite", name: SITE_NAME, url: SITE_URL } };
@@ -28,7 +49,7 @@ export function renderRouteHtml({ template, pathname }: { template: string; path
   const ogImage = `${origin.replace(/\/$/, "")}/images/hero-field-poster.jpg`;
   let html = template.replace(/<title>[^<]*<\/title>/i, `<title>${escapeHtml(meta.title)}</title>`);
   html = replaceMeta(html, "name", "description", meta.description);
-  html = html.replace(/<link\s+rel=["']canonical["']\s+href=["'][^"']*["']\s*\/?>/i, `<link rel="canonical" href="${escapeHtml(url)}" />`);
+  html = replaceLink(html, "canonical", url);
   html = replaceMeta(html, "property", "og:title", meta.title);
   html = replaceMeta(html, "property", "og:description", meta.description);
   html = replaceMeta(html, "property", "og:url", url);
