@@ -56,10 +56,21 @@ function clearAdminSessionCookie(res: Response): void {
   res.setHeader("Set-Cookie", attributes.join("; "));
 }
 
-const pruneInterval = setInterval(() => {
-  void pruneExpiredSessions().catch((error) => console.error("[admin] session prune failed:", error));
-}, 15 * 60 * 1000);
-pruneInterval.unref();
+let pruneInterval: NodeJS.Timeout | null = null;
+
+/**
+ * Starts the expired-session sweep.
+ *
+ * Lazy for the same reason as `startRateLimitPruning`: Workers forbids timers
+ * created in the global scope.
+ */
+export function startSessionPruning(): void {
+  if (pruneInterval) return;
+  pruneInterval = setInterval(() => {
+    void pruneExpiredSessions().catch((error) => console.error("[admin] session prune failed:", error));
+  }, 15 * 60 * 1000);
+  pruneInterval.unref?.();
+}
 
 adminRouter.post("/admin/auth/login", apiLimiters.adminLogin(), validateBody(SupabaseLoginSchema), async (req, res) => {
   if (!isSupabaseAuthEnabled()) { res.status(503).json({ error: "Authentication service is not configured." }); return; }

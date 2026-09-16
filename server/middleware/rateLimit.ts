@@ -12,14 +12,33 @@ function clientKey(req: Request): string {
 export type RateLimitOptions = { max: number; windowMs: number; name: string };
 
 const localBuckets = new Map<string, LocalBucket>();
-const pruneInterval = setInterval(() => {
-  const now = Date.now();
-  localBuckets.forEach((bucket, key) => {
-    if (bucket.resetAt <= now) localBuckets.delete(key);
-  });
-  if (isDistributedRateLimiting()) void pruneRateLimitBuckets().catch((error) => console.error("[rateLimit] prune failed:", error));
-}, 60_000);
-pruneInterval.unref();
+let pruneInterval: NodeJS.Timeout | null = null;
+
+/**
+ * Starts the background bucket sweep.
+ *
+ * Called from `createApp` rather than at module scope: the Workers runtime
+ * rejects timers created in the global scope, and the app factory runs inside
+ * a request handler there.
+ */
+export function startRateLimitPruning(): void {
+  if (pruneInterval) return;
+  pruneInterval = setInterval(() => {
+    const now = Date.now();
+    localBuckets.forEach((bucket, key) => {
+      if (bucket.resetAt <= now) localBuckets.delete(key);
+    });
+    if (isDistributedRateLimiting()) void pruneRateLimitBuckets().catch((error) => console.error("[rateLimit] prune failed:", error));
+  }, 60_000);
+  pruneInterval.unref?.();
+}
+
+/** Test-only hook. */
+export function stopRateLimitPruning(): void {
+  if (!pruneInterval) return;
+  clearInterval(pruneInterval);
+  pruneInterval = null;
+}
 
 function applyHeaders(res: Response, max: number, count: number, resetAt: number): void {
   res.setHeader("X-RateLimit-Limit", String(max));
