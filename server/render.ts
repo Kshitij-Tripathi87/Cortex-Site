@@ -1,5 +1,3 @@
-import { readFileSync } from "fs";
-import path from "path";
 import { SITE_NAME, SITE_ROUTES, SITE_URL, canonicalUrl, routeMeta } from "../shared/site";
 
 function escapeHtml(value: string): string { return value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character] || character)); }
@@ -17,8 +15,13 @@ export function createNoScriptSummary(pathname: string, title: string, descripti
   if (pathname === "/404") return `<main><h1>Page not found</h1><p>${escapeHtml(description)}</p></main>`;
   return `<main><h1>${escapeHtml(title)}</h1><p>${escapeHtml(description)}</p><p><a href="/">Cortex home</a></p></main>`;
 }
-export function renderRouteHtml({ staticPath, pathname }: { staticPath: string; pathname: string }): string {
-  const template = readFileSync(path.join(staticPath, "index.html"), "utf8");
+/**
+ * Injects per-route metadata into the built `index.html`.
+ *
+ * The template is passed in rather than read here so this module works on both
+ * Node (filesystem) and Cloudflare Workers (Assets binding).
+ */
+export function renderRouteHtml({ template, pathname }: { template: string; pathname: string }): string {
   const meta = routeMeta(pathname);
   const origin = process.env.SITE_URL?.trim() || SITE_URL;
   const url = canonicalUrl(pathname, origin);

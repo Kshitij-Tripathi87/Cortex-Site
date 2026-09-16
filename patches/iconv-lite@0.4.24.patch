@@ -1,0 +1,23 @@
+diff --git a/lib/index.js b/lib/index.js
+index 5391919ca2c6314bdd7c246e4d00ae1cec42c98d..26b62f0c7ac52747017f079b4cca483b79ba8077 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -141,11 +141,16 @@ if (nodeVer) {
+     // Load streaming support in Node v0.10+
+     var nodeVerArr = nodeVer.split(".").map(Number);
+     if (nodeVerArr[0] > 0 || nodeVerArr[1] >= 10) {
+-        require("./streams")(iconv);
++        // pnpm patch: this package's own "browser" field maps ./lib/streams to
++        // false, so bundlers that honour it (Wrangler, Vite) hand back an empty
++        // module here. Guard the call instead of assuming a function.
++        var streams = require("./streams");
++        if (typeof streams === "function") streams(iconv);
+     }
+ 
+     // Load Node primitive extensions.
+-    require("./extend-node")(iconv);
++    var extendNode = require("./extend-node");
++    if (typeof extendNode === "function") extendNode(iconv);
+ }
+ 
+ if ("Ā" != "\u0100") {

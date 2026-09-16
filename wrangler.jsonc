@@ -1,0 +1,35 @@
+{
+  // Committing this file is what stops `wrangler deploy` from running its
+  // interactive "configure project for Vite" setup on every deploy (which
+  // failed with "Cannot modify Vite config: could not find a valid plugins
+  // array"). Any wrangler config file disables that auto-setup.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cortex-site",
+  // 2026-09-15 enables nodejs_compat (node:http, node:crypto, node:stream...)
+  // by default, which is what lets the Express app run on Workers.
+  "compatibility_date": "2026-09-15",
+  "main": "worker/index.ts",
+  "assets": {
+    "directory": "dist/public",
+    // Lets the Worker read the built index.html for server rendering.
+    "binding": "ASSETS",
+    // "none" = only exact file matches are served as static assets. Without it
+    // `/` would be answered by the raw index.html and bypass server rendering,
+    // losing every route's <title>, description and canonical URL.
+    "html_handling": "none"
+    // No `not_found_handling` on purpose: requests that match no asset fall
+    // through to this Worker, which renders unknown routes as the 404 page.
+  },
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "NODE_ENV": "production"
+    // Set the remaining values as encrypted secrets, not here:
+    //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY,
+    //   CORTEX_EMAIL_MODE=resend, CORTEX_CONTACT_TO_EMAIL,
+    //   CORTEX_CONTACT_EMAIL_FROM, CORTEX_WAITLIST_TO_EMAIL, CORTEX_EMAIL_FROM
+    // Non-secret extras worth setting: SITE_URL, OLLAMA_BASE_URL, OLLAMA_MODEL
+    // See docs/CLOUDFLARE.md.
+  }
+}

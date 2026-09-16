@@ -4,10 +4,10 @@ import react from "@vitejs/plugin-react";
 import path from "node:path";
 import { defineConfig } from "vite";
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin()];
-
 export default defineConfig({
-  plugins,
+  // Kept inline: tooling that rewrites this file (Wrangler's Vite setup) looks
+  // for a literal plugins array and cannot follow a variable reference.
+  plugins: [react(), tailwindcss(), jsxLocPlugin()],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),

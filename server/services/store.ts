@@ -6,9 +6,20 @@ import { fileURLToPath } from "url";
 import { createHash } from "crypto";
 import { getSupabaseAdmin } from "./supabase";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const dataDir = path.resolve(__dirname, "..", "..", "data");
+/**
+ * Local JSON files are the development-only fallback (production is Supabase).
+ * Bundled runtimes such as Workers have no module path to resolve against, and
+ * never use these files, so fall back to a cwd-relative path instead of
+ * throwing at import time.
+ */
+const __dirname = (() => {
+  try {
+    return path.dirname(fileURLToPath(import.meta.url));
+  } catch {
+    return null;
+  }
+})();
+const dataDir = __dirname ? path.resolve(__dirname, "..", "..", "data") : "data";
 const waitlistFile = path.resolve(process.env.WORKFLO_WAITLIST_FILE || path.join(dataDir, "waitlist.json"));
 const contactFile = path.resolve(process.env.CORTEX_CONTACT_FILE || path.join(dataDir, "contact-requests.json"));
 const demoFile = path.resolve(process.env.CORTEX_DEMO_FILE || path.join(dataDir, "demo-requests.json"));
