@@ -5,12 +5,14 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { createHash, randomBytes, timingSafeEqual } from "crypto";
 import { AI_SYSTEM_PROMPT, followUpsFor, groundPrompt } from "../shared/aiCore";
+import { buildRobots, buildSitemap, renderNotFound, renderRoute } from "./prerender";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const port = Number(process.env.PORT) || 3000;
 const isProduction = process.env.NODE_ENV === "production";
+const siteUrl = (process.env.CORTEX_SITE_URL || "https://cortex.com").replace(/\/+$/, "");
 const staticPath = path.resolve(__dirname, "public");
 const waitlistFile = path.resolve(process.env.WORKFLO_WAITLIST_FILE || path.resolve(__dirname, "..", "data", "waitlist.json"));
 const contactFile = path.resolve(process.env.CORTEX_CONTACT_FILE || path.resolve(__dirname, "..", "data", "contact-requests.json"));
@@ -166,8 +168,11 @@ type ContactRequest = {
   name: string;
   email: string;
   company: string;
+  role: string;
+  companySize: string;
   product: string;
   message: string;
+  timing: string;
   submittedAt: string;
 };
 
@@ -310,11 +315,14 @@ async function sendContactNotification(request: ContactRequest) {
     `Name: ${request.name}`,
     `Email: ${request.email}`,
     `Company: ${request.company}`,
-    `Topic: ${request.product || "Not specified"}`,
-    `Message: ${request.message}`,
+    `Role: ${request.role || "Not specified"}`,
+    `Company size: ${request.companySize || "Not specified"}`,
+    `Product: ${request.product || "Not specified"}`,
+    `Timing: ${request.timing || "Not specified"}`,
+    `Decision / problem: ${request.message}`,
     `Submitted: ${request.submittedAt}`,
   ].join("\n");
-  const html = `<h2>New Cortex conversation request</h2><p><strong>Name:</strong> ${escapeHtml(request.name)}</p><p><strong>Email:</strong> ${escapeHtml(request.email)}</p><p><strong>Company:</strong> ${escapeHtml(request.company)}</p><p><strong>Topic:</strong> ${escapeHtml(request.product || "Not specified")}</p><p><strong>Message:</strong> ${escapeHtml(request.message)}</p><p><strong>Submitted:</strong> ${escapeHtml(request.submittedAt)}</p>`;
+  const html = `<h2>New Cortex conversation request</h2><p><strong>Name:</strong> ${escapeHtml(request.name)}</p><p><strong>Email:</strong> ${escapeHtml(request.email)}</p><p><strong>Company:</strong> ${escapeHtml(request.company)}</p><p><strong>Role:</strong> ${escapeHtml(request.role || "Not specified")}</p><p><strong>Company size:</strong> ${escapeHtml(request.companySize || "Not specified")}</p><p><strong>Product:</strong> ${escapeHtml(request.product || "Not specified")}</p><p><strong>Preferred timing:</strong> ${escapeHtml(request.timing || "Not specified")}</p><p><strong>Decision / problem:</strong> ${escapeHtml(request.message)}</p><p><strong>Submitted:</strong> ${escapeHtml(request.submittedAt)}</p>`;
 
   if (emailMode === "mock") {
     console.info("[contact] Mock email notification:", { from: process.env.CORTEX_CONTACT_EMAIL_FROM || process.env.WORKFLO_EMAIL_FROM || "mock@cortex.local", to: process.env.CORTEX_CONTACT_TO_EMAIL || process.env.WORKFLO_WAITLIST_TO_EMAIL || "admin@cortex.local", subject, text });
@@ -401,8 +409,11 @@ app.post("/api/contact", async (req, res) => {
   const name = cleanText(req.body?.name, 120);
   const email = cleanText(req.body?.email, 254).toLowerCase();
   const company = cleanText(req.body?.company, 160);
+  const role = cleanText(req.body?.role, 80);
+  const companySize = cleanText(req.body?.companySize, 40);
   const product = cleanText(req.body?.product, 120);
   const message = cleanText(req.body?.message, 4000);
+  const timing = cleanText(req.body?.timing, 40);
 
   if (!name || !email || !isValidEmail(email) || !company || message.length < 20) {
     res.status(400).json({ error: "Please provide your name, work email, company, and a short message." });
@@ -414,8 +425,11 @@ app.post("/api/contact", async (req, res) => {
     name,
     email,
     company,
+    role,
+    companySize,
     product,
     message,
+    timing,
     submittedAt: new Date().toISOString(),
   };
 
@@ -555,16 +569,38 @@ app.post("/api/ai/chat", async (req, res) => {
 });
 
 app.use(cacheTuner);
-app.use(express.static(staticPath, { etag: true }));
+// `index: false` keeps `/` from bypassing the prerendered SPA fallback below;
+// static assets still resolve normally.
+app.use(express.static(staticPath, { etag: true, index: false }));
 
 app.use("/api", (_req, res) => {
   res.status(404).json({ error: "not found" });
 });
 
-app.get("*", (_req, res, next) => {
-  res.sendFile(path.join(staticPath, "index.html"), (err) => {
-    if (err) next(err);
-  });
+// SEO endpoints generated from the shared catalog.
+app.get("/robots.txt", (_req, res) => {
+  res.type("text/plain").send(buildRobots(siteUrl));
+});
+
+app.get("/sitemap.xml", (_req, res) => {
+  res.type("application/xml").send(buildSitemap(siteUrl, new Date().toISOString().slice(0, 10)));
+});
+
+// SPA fallback with head-level prerendering. Known routes get their semantic
+// head (title, description, canonical, OG, JSON-LD, noscript) injected into the
+// shell; unknown routes return a real HTTP 404 with a not-found representation.
+app.get("*", async (req, res, next) => {
+  try {
+    const rendered = await renderRoute(req.path, siteUrl);
+    if (rendered) {
+      res.status(rendered.status).send(rendered.html);
+      return;
+    }
+    const notFound = await renderNotFound(siteUrl);
+    res.status(notFound.status).send(notFound.html);
+  } catch (err) {
+    next(err);
+  }
 });
 
 app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {

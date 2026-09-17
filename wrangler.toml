@@ -1,0 +1,26 @@
+# Cortex Site — Cloudflare Worker configuration
+# Deploy: `pnpm build` then `npx wrangler deploy`
+# Development: `npx wrangler dev` (uses *.workers.dev domain)
+
+name = "cortex-site"
+main = "worker/index.ts"
+compatibility_date = "2024-12-01"
+
+# Static assets served from the Vite build output.
+[assets]
+directory = "./dist/public"
+binding = "ASSETS"
+
+# --- Environment variables (secrets set via `npx wrangler secret put`) ---
+[vars]
+# WORKFLO_EMAIL_MODE = "resend"
+# WORKFLO_EMAIL_FROM = "Workflo <waitlist@your-verified-domain.com>"
+# WORKFLO_WAITLIST_TO_EMAIL = "you@company.com"
+# CORTEX_CONTACT_EMAIL_FROM = "Cortex <contact@your-verified-domain.com>"
+# CORTEX_CONTACT_TO_EMAIL = "you@company.com"
+
+# --- Secrets (never commit these) ---
+# npx wrangler secret put SUPABASE_URL
+# npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+# npx wrangler secret put RESEND_API_KEY
+# npx wrangler secret put WORKFLO_ADMIN_TOKEN
