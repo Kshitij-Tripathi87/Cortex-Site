@@ -89,6 +89,18 @@ export default function Home() {
   const [contactForm, setContactForm] = useState({ name: "", email: "", company: "", role: "", companySize: "", product: "", message: "", timing: "" });
   const [contactErrors, setContactErrors] = useState<Record<string, string>>({});
   const [contactSubmitError, setContactSubmitError] = useState("");
+  const [explorerNode, setExplorerNode] = useState<number | null>(null);
+
+  const architectureNodes = [
+    { label: "DATA", summary: "Ingest and unify every operational feed", purpose: "The ingestion layer connects the event streams, operational databases, and business tools teams already rely on — preserving existing ownership while creating one consistent feed.", inputs: ["Event streams", "Operational databases", "Business tools", "Human notes"], outputs: ["Unified signal feed", "Normalized event model"], dependencies: ["Source-system connectivity", "Schema governance"] },
+    { label: "WORLD STATE", summary: "Build the shared operating picture", purpose: "World state maintains a continuously legible view of the conditions shaping the business, so every team starts from the same operating picture.", inputs: ["Unified signal feed"], outputs: ["Shared context model", "Live and historical views"], dependencies: ["DATA", "Context governance"] },
+    { label: "GRAPH", summary: "Trace relationships and causal chains", purpose: "The relationship graph links signals, teams, and systems across time so operators understand why a signal matters before committing to a response.", inputs: ["World state", "Entity relationships"], outputs: ["Contextual timelines", "Causal chains", "Evidence links"], dependencies: ["WORLD STATE"] },
+    { label: "SIGNALS", summary: "Flow meaningful context, not noise", purpose: "Signals separate meaningful patterns from background noise and route them into the reasoning layer with their full context attached.", inputs: ["Graph", "Pattern rules"], outputs: ["Prioritized signals", "Context attachments"], dependencies: ["GRAPH"] },
+    { label: "AGENTS", summary: "Autonomous reasoning and preparation", purpose: "Agents prepare evidence-backed recommendations: they assemble assumptions, constraints, and supporting proof into one decision frame.", inputs: ["Signals", "Domain policies"], outputs: ["Decision frames", "Recommendations"], dependencies: ["SIGNALS", "POLICY"] },
+    { label: "SIMULATION", summary: "Run counterfactuals before committing", purpose: "Simulation runs counterfactual scenarios against the world state so trade-offs are explicit before a decision is committed.", inputs: ["Decision frames", "World state"], outputs: ["Scenario comparisons", "Trade-off analysis"], dependencies: ["AGENTS", "WORLD STATE"] },
+    { label: "POLICY", summary: "Governance, permissions, and audit", purpose: "Policy governs role-aware permissions, approval paths, and auditable decision trails so operators move quickly without losing control.", inputs: ["Organizational roles", "Compliance rules"], outputs: ["Approval paths", "Audit trails"], dependencies: ["Organizational identity"] },
+    { label: "DECISION", summary: "Route the call with evidence", purpose: "The decision layer routes each call to the right owner with a clear record of what was decided, why, and what the system should watch next.", inputs: ["Simulation", "Policy approvals"], outputs: ["Owned decisions", "Follow-up signals", "Sealed receipts"], dependencies: ["SIMULATION", "POLICY"] },
+  ];
 
   const systemRef = useRef<HTMLDivElement>(null);
   const sysProgress = useScrollProgress(systemRef, 6);
@@ -499,26 +511,38 @@ export default function Home() {
         {/* 09 INTERACTIVE ARCHITECTURE EXPLORER */}
         <section className="cx-section" id="architecture">
           <div className="cx-sec-label"><span>ARCHITECTURE</span><i /></div>
-          <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
-            <p style={{ color: "#A9B1BC", maxWidth: "60ch", marginBottom: "40px" }}>Explore the Cortex intelligence stack layer by layer. Each node reveals purpose, inputs, outputs, and dependencies.</p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px" }}>
-              {[
-                { label: "SIGNALS", desc: "Ingest & unify every operational feed", href: "/docs" },
-                { label: "WORLD STATE", desc: "Build the shared operating picture", href: "/docs" },
-                { label: "GRAPH", desc: "Trace relationships & causal chains", href: "/docs" },
-                { label: "SIGNALS", desc: "Flowing context across the stack", href: "/docs" },
-                { label: "AGENTS", desc: "Autonomous reasoning & simulation", href: "/docs" },
-                { label: "SIMULATION", desc: "Run counterfactuals before committing", href: "/docs" },
-                { label: "POLICY", desc: "Governance, permissions, audit", href: "/docs" },
-                { label: "DECISION", desc: "Route the call with evidence", href: "/docs" },
-              ].map((node, i) => (
-                <a key={node.label} href={node.href} style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "20px", border: "1px solid #1C2129", background: "#0A0D11", textDecoration: "none", color: "inherit", transition: "border-color .2s ease, transform .2s ease" }}>
-                  <strong style={{ fontFamily: '"IBM Plex Mono", monospace', fontSize: "1.25rem", color: "#4E7EF0" }}>{node.label}</strong>
-                  <small style={{ color: "#858C96" }}>{node.desc}</small>
-                  <span style={{ marginTop: "auto", display: "flex", alignItems: "center", justifyContent: "space-between", color: "#4E7EF0", fontSize: "12px" }}>Explore <ArrowRight size={14} /></span>
-                </a>
+          <div className="cx-explorer">
+            <p className="cx-explorer-intro">Explore the Cortex intelligence stack layer by layer. Select a node to reveal its purpose, inputs, outputs, and dependencies.</p>
+            <div className="cx-explorer-grid">
+              {architectureNodes.map((node, i) => (
+                <button
+                  key={node.label}
+                  type="button"
+                  className={`cx-explorer-node ${explorerNode === i ? "is-active" : ""}`}
+                  onClick={() => setExplorerNode(explorerNode === i ? null : i)}
+                  aria-expanded={explorerNode === i}
+                >
+                  <strong>{node.label}</strong>
+                  <small>{node.summary}</small>
+                  <span>Inspect <ArrowRight size={14} /></span>
+                </button>
               ))}
             </div>
+            {explorerNode !== null && (
+              <div className="cx-explorer-detail" role="region" aria-label={`${architectureNodes[explorerNode].label} details`}>
+                <div className="cx-explorer-detail-head">
+                  <strong>{architectureNodes[explorerNode].label}</strong>
+                  <button type="button" onClick={() => setExplorerNode(null)} aria-label="Close details"><X size={16} /></button>
+                </div>
+                <p className="cx-explorer-purpose">{architectureNodes[explorerNode].purpose}</p>
+                <div className="cx-explorer-columns">
+                  <div><span>INPUTS</span><ul>{architectureNodes[explorerNode].inputs.map((item) => <li key={item}>{item}</li>)}</ul></div>
+                  <div><span>OUTPUTS</span><ul>{architectureNodes[explorerNode].outputs.map((item) => <li key={item}>{item}</li>)}</ul></div>
+                  <div><span>DEPENDENCIES</span><ul>{architectureNodes[explorerNode].dependencies.map((item) => <li key={item}>{item}</li>)}</ul></div>
+                </div>
+                <a className="text-link" href="/docs">Read the documentation <ArrowRight size={16} /></a>
+              </div>
+            )}
           </div>
         </section>
 
